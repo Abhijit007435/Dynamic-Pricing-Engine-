@@ -19,7 +19,7 @@ public class ProductController {
 
     @PostMapping
     public ResponseEntity<Product> createProduct(
-            @RequestBody Product product) {
+            @RequestBody @NonNull Product product) {
 
         Product savedProduct = productService.createProduct(product);
 
