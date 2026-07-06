@@ -1,7 +1,11 @@
 package com.dynamicpricing.pricing_backend.services;
 
+import com.dynamicpricing.pricing_backend.dtos.InventoryStatusDTO;
 import com.dynamicpricing.pricing_backend.models.Inventory;
+import com.dynamicpricing.pricing_backend.models.Product;
 import com.dynamicpricing.pricing_backend.repositories.InventoryRepository;
+import com.dynamicpricing.pricing_backend.repositories.ProductRepository;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
@@ -16,6 +20,7 @@ public class InventoryService {
 
     private final InventoryRepository repository;
     private final PricingEngineService pricingEngineService;
+    private final ProductRepository productRepository;
 
     public List<Inventory> getAllInventory() {
         return repository.findAll();
@@ -88,4 +93,35 @@ public class InventoryService {
     public void deleteInventory(@NonNull String id) {
         repository.deleteById(id);
     }
+    @SuppressWarnings("null")
+public List<InventoryStatusDTO> getInventoryStatus() {
+
+    return repository.findAll()
+            .stream()
+            .map(inventory -> {
+
+                String productName =
+                        productRepository
+                                .findById(inventory.getProductId())
+                                .map(Product::getProductName)
+                                .orElse("Unknown Product");
+
+                String stockStatus;
+
+                if (inventory.getAvailableQuantity() < 20) {
+                    stockStatus = "LOW";
+                } else if (inventory.getAvailableQuantity() <= 100) {
+                    stockStatus = "MEDIUM";
+                } else {
+                    stockStatus = "HIGH";
+                }
+
+                return new InventoryStatusDTO(
+                        productName,
+                        inventory.getAvailableQuantity(),
+                        stockStatus
+                );
+            })
+            .toList();
+}
 }
