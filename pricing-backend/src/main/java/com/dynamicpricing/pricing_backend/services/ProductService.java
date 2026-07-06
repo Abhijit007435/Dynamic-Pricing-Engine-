@@ -6,6 +6,7 @@ import com.dynamicpricing.pricing_backend.repositories.ProductRepository;
 
 import lombok.RequiredArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.lang.NonNull;
@@ -18,6 +19,7 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     public Product createProduct(@NonNull Product product) {
+        product.setCreatedAt(LocalDateTime.now());
     return productRepository.save(product);
 }
 public List<Product> getAllProducts() {
