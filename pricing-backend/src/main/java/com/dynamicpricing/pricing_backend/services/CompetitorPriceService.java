@@ -1,6 +1,8 @@
 package com.dynamicpricing.pricing_backend.services;
 
+import com.dynamicpricing.pricing_backend.dtos.PriceComparisonDTO;
 import com.dynamicpricing.pricing_backend.models.CompetitorPrice;
+import com.dynamicpricing.pricing_backend.models.Product;
 import com.dynamicpricing.pricing_backend.repositories.CompetitorPriceRepository;
 import com.dynamicpricing.pricing_backend.repositories.ProductRepository;
 import lombok.RequiredArgsConstructor;
@@ -109,4 +111,51 @@ return saved;
 
         competitorPriceRepository.deleteById(id);
     }
+    public PriceComparisonDTO comparePrice(@NonNull     String productId) {
+
+    Product product = productRepository.findById(productId)
+            .orElseThrow(() ->
+                    new RuntimeException("Product not found"));
+
+    List<CompetitorPrice> competitors =
+            competitorPriceRepository.findByProductId(productId);
+
+    if (competitors.isEmpty()) {
+        throw new RuntimeException("No competitor prices found");
+    }
+
+    @SuppressWarnings("null")
+    double avgCompetitorPrice =
+            competitors.stream()
+                    .mapToDouble(CompetitorPrice::getCompetitorPrice)
+                    .average()
+                    .orElseThrow();
+
+    avgCompetitorPrice =
+            Math.round(avgCompetitorPrice * 100.0) / 100.0;
+
+    double ourPrice = product.getCurrentPrice();
+
+    double difference =
+            Math.round(Math.abs(ourPrice - avgCompetitorPrice) * 100.0)
+                    / 100.0;
+
+    String status;
+
+    if (ourPrice < avgCompetitorPrice) {
+        status = "CHEAPER";
+    } else if (ourPrice > avgCompetitorPrice) {
+        status = "MORE_EXPENSIVE";
+    } else {
+        status = "SAME_PRICE";
+    }
+
+    return new PriceComparisonDTO(
+            product.getProductName(),
+            ourPrice,
+            avgCompetitorPrice,
+            difference,
+            status
+    );
+}
 }

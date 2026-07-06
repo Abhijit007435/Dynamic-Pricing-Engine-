@@ -1,5 +1,6 @@
 package com.dynamicpricing.pricing_backend.controllers;
 
+import com.dynamicpricing.pricing_backend.dtos.PriceComparisonDTO;
 import com.dynamicpricing.pricing_backend.models.CompetitorPrice;
 import com.dynamicpricing.pricing_backend.services.CompetitorPriceService;
 import jakarta.validation.Valid;
@@ -71,4 +72,12 @@ public class CompetitorPriceController {
 
         return ResponseEntity.noContent().build();
     }
+    @GetMapping("/compare/{productId}")
+public ResponseEntity<PriceComparisonDTO> comparePrice(
+        @PathVariable @NonNull String productId) {
+
+    return ResponseEntity.ok(
+            competitorPriceService.comparePrice(productId)
+    );
+}
 }
