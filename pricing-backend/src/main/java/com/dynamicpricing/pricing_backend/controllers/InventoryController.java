@@ -1,4 +1,4 @@
-package com.dynamicpricing.pricing_backend.controller;
+package com.dynamicpricing.pricing_backend.controllers;
 
 import com.dynamicpricing.pricing_backend.models.Inventory;
 import com.dynamicpricing.pricing_backend.repositories.InventoryRepository;
