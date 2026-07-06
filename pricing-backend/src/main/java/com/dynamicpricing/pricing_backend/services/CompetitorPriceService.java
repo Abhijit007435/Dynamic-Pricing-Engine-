@@ -18,6 +18,7 @@ public class CompetitorPriceService {
 
     private final CompetitorPriceRepository competitorPriceRepository;
     private final ProductRepository productRepository;
+    private final PricingEngineService pricingEngineService;
 
     @SuppressWarnings("null")
     public CompetitorPrice createCompetitorPrice(
@@ -29,7 +30,20 @@ public class CompetitorPriceService {
 
         competitorPrice.setUpdatedAt(LocalDateTime.now());
 
-        return competitorPriceRepository.save(competitorPrice);
+       CompetitorPrice saved =
+        competitorPriceRepository.save(
+                competitorPrice);
+
+try {
+    pricingEngineService.generateRecommendation(
+            saved.getProductId());
+} catch (Exception e) {
+    System.out.println(
+            "Pricing recommendation failed: "
+                    + e.getMessage());
+}
+
+return saved;
     }
 
     public List<CompetitorPrice> getAllCompetitorPrices() {
@@ -71,7 +85,17 @@ public class CompetitorPriceService {
 
                     existing.setUpdatedAt(LocalDateTime.now());
 
-                    return competitorPriceRepository.save(existing);
+                    CompetitorPrice updated =
+                                             competitorPriceRepository.save(existing);
+                                             try {
+                                pricingEngineService.generateRecommendation(
+                                        updated.getProductId());
+                                } catch (Exception e) {
+                                System.out.println(
+                                        "Pricing recommendation failed: "
+                                                + e.getMessage());
+                                }
+                                return updated;
                 })
                 .orElseThrow(() ->
                         new RuntimeException("Competitor price not found"));
