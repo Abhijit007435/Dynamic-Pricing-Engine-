@@ -22,4 +22,10 @@ public class PricingHistoryService {
     public List<PricingHistory> getAllHistory() {
         return repository.findAll();
     }
+    public List<PricingHistory> getHistoryByProductId(
+        String productId) {
+
+    return repository
+            .findByProductId(productId);
+}
 }

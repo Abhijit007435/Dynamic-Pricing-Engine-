@@ -37,4 +37,13 @@ public class PricingHistoryController {
                 pricingHistoryService.getAllHistory()
         );
     }
+    @GetMapping("/product/{productId}")
+public ResponseEntity<List<PricingHistory>>
+getHistoryByProductId(
+        @PathVariable String productId) {
+
+    return ResponseEntity.ok(
+            pricingHistoryService
+                    .getHistoryByProductId(productId));
+}
 }
