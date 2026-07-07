@@ -5,7 +5,9 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import ProductManagement from './pages/ProductManagement';
-import PlaceholderPage from './pages/PlaceholderPage';
+import InventoryManagement from './pages/InventoryManagement';
+import CompetitorPricing from './pages/CompetitorPricing';
+import PricingRecommendation from './pages/PricingRecommendation';
 
 export default function App() {
   return (
@@ -36,7 +38,7 @@ export default function App() {
             path="/inventory"
             element={
               <ProtectedRoute>
-                <Layout><PlaceholderPage title="Inventory Management" /></Layout>
+                <Layout><InventoryManagement /></Layout>
               </ProtectedRoute>
             }
           />
@@ -44,7 +46,7 @@ export default function App() {
             path="/competitor-pricing"
             element={
               <ProtectedRoute>
-                <Layout><PlaceholderPage title="Competitor Pricing" /></Layout>
+                <Layout><CompetitorPricing /></Layout>
               </ProtectedRoute>
             }
           />
@@ -52,7 +54,7 @@ export default function App() {
             path="/pricing-recommendation"
             element={
               <ProtectedRoute>
-                <Layout><PlaceholderPage title="Pricing Recommendation" /></Layout>
+                <Layout><PricingRecommendation /></Layout>
               </ProtectedRoute>
             }
           />
