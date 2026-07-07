@@ -1,11 +1,13 @@
-import { Box, Drawer, List, ListItemButton, ListItemIcon, ListItemText, AppBar, Toolbar, Typography } from '@mui/material';
-import { NavLink, useLocation } from 'react-router-dom';
+import { Box, Drawer, List, ListItemButton, ListItemIcon, ListItemText, AppBar, Toolbar, Typography, IconButton, Tooltip } from '@mui/material';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import PriceChangeOutlinedIcon from '@mui/icons-material/PriceChangeOutlined';
 import ShowChartOutlinedIcon from '@mui/icons-material/ShowChartOutlined';
+import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import { tokens } from '../theme';
+import { useAuth } from '../context/AuthContext';
 
 const DRAWER_WIDTH = 240;
 
@@ -20,6 +22,13 @@ const navItems = [
 
 export default function Layout({ children }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
@@ -70,10 +79,15 @@ export default function Layout({ children }) {
 
       <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
         <AppBar position="sticky">
-          <Toolbar>
+          <Toolbar sx={{ justifyContent: 'space-between' }}>
             <Typography variant="h6" sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>
               Dynamic Pricing Engine
             </Typography>
+            <Tooltip title="Logout">
+              <IconButton onClick={handleLogout} sx={{ color: tokens.ink }}>
+                <LogoutOutlinedIcon />
+              </IconButton>
+            </Tooltip>
           </Toolbar>
         </AppBar>
         <Box component="main" sx={{ flexGrow: 1, p: 4, backgroundColor: tokens.background }}>

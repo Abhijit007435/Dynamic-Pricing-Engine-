@@ -1,5 +1,6 @@
 package com.dynamicpricing.pricing_backend.models;
 
+
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -21,6 +22,8 @@ public class Product {
     private String category;
 
     private Double currentPrice;
+
+    private DemandLevel demandLevel;
 
     private LocalDateTime createdAt;
 }
