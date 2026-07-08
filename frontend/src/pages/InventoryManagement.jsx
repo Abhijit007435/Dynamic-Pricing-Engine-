@@ -22,15 +22,14 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import StackedLineChartOutlinedIcon from '@mui/icons-material/StackedLineChartOutlined';
 import { tokens } from '../theme';
 import StatCard from '../components/StatCard';
-import { getInventory, addInventory, updateInventory } from '../services/api';
+import { getInventory, addInventory, updateInventory, deleteInventory, getProducts } from '../services/api';
 
-// Same threshold logic used across the app — if these numbers change,
-// change them here only (Pricing Recommendation page will reuse this too).
 const getStockStatus = (quantity) => {
   if (quantity <= 10) return 'low';
   if (quantity >= 100) return 'high';
@@ -43,8 +42,6 @@ const STATUS_STYLES = {
   high: { label: 'High Stock', bg: tokens.increaseSoft, color: tokens.increase },
 };
 
-// Small helper so every number in this page renders in the same
-// monospace/tabular style the design system calls for.
 function MonoNumber({ children, sx = {} }) {
   return (
     <Typography
@@ -74,8 +71,16 @@ export default function InventoryManagement() {
     setLoading(true);
     setError(null);
     try {
-      const response = await getInventory();
-      setItems(response.data);
+      const [invRes, prodRes] = await Promise.all([getInventory(), getProducts()]);
+      const productsById = {};
+      prodRes.data.forEach((p) => {
+        productsById[p.id || p._id] = p;
+      });
+      const merged = invRes.data.map((item) => ({
+        ...item,
+        productName: productsById[item.productId]?.productName || 'Unknown Product',
+      }));
+      setItems(merged);
     } catch (err) {
       setError('Could not load inventory. Check that the backend server is running.');
     } finally {
@@ -107,7 +112,8 @@ export default function InventoryManagement() {
     setSaving(true);
     try {
       if (editingItem) {
-        await updateInventory(editingItem._id || editingItem.productId, {
+        await updateInventory(editingItem.id, {
+          productId: editingItem.productId,
           availableQuantity: Number(form.availableQuantity),
         });
       } else {
@@ -122,6 +128,16 @@ export default function InventoryManagement() {
       setError('Save failed. Please try again.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async (item) => {
+    if (!window.confirm(`Delete inventory record for "${item.productName}"?`)) return;
+    try {
+      await deleteInventory(item.id);
+      fetchItems();
+    } catch (err) {
+      setError('Delete failed. Please try again.');
     }
   };
 
@@ -202,7 +218,7 @@ export default function InventoryManagement() {
                 const status = getStockStatus(item.availableQuantity);
                 const statusStyle = STATUS_STYLES[status];
                 return (
-                  <TableRow key={item._id || item.productId} hover>
+                  <TableRow key={item.id} hover>
                     <TableCell>
                       <MonoNumber sx={{ color: tokens.inkSoft }}>{item.productId}</MonoNumber>
                     </TableCell>
@@ -224,6 +240,9 @@ export default function InventoryManagement() {
                     <TableCell align="right">
                       <IconButton size="small" onClick={() => openEditDialog(item)}>
                         <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" onClick={() => handleDelete(item)}>
+                        <DeleteOutlineIcon fontSize="small" sx={{ color: tokens.decrease }} />
                       </IconButton>
                     </TableCell>
                   </TableRow>

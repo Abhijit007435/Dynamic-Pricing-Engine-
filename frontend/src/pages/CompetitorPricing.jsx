@@ -18,13 +18,15 @@ import {
   Alert,
   Skeleton,
   Typography,
+  IconButton,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { tokens } from '../theme';
 import PriceTag from '../components/PriceTag';
-import { getCompetitorPrices, addCompetitorPrice } from '../services/api';
+import { getCompetitorPrices, addCompetitorPrice, deleteCompetitorPrice, getProducts } from '../services/api';
 
 export default function CompetitorPricing() {
   const [items, setItems] = useState([]);
@@ -39,8 +41,19 @@ export default function CompetitorPricing() {
     setLoading(true);
     setError(null);
     try {
-      const response = await getCompetitorPrices();
-      setItems(response.data);
+      // CompetitorPrice model has neither productName nor ourPrice on the backend —
+      // fetch products alongside and join by productId to get both.
+      const [compRes, prodRes] = await Promise.all([getCompetitorPrices(), getProducts()]);
+      const productsById = {};
+      prodRes.data.forEach((p) => {
+        productsById[p.id || p._id] = p;
+      });
+      const merged = compRes.data.map((item) => ({
+        ...item,
+        productName: productsById[item.productId]?.productName || 'Unknown Product',
+        ourPrice: productsById[item.productId]?.currentPrice ?? null,
+      }));
+      setItems(merged);
     } catch (err) {
       setError('Could not load competitor prices. Check that the backend server is running.');
     } finally {
@@ -73,9 +86,22 @@ export default function CompetitorPricing() {
     }
   };
 
+  const handleDelete = async (item) => {
+    if (!window.confirm(`Delete competitor price entry from "${item.competitorName}"?`)) return;
+    try {
+      await deleteCompetitorPrice(item.id);
+      fetchItems();
+    } catch (err) {
+      setError('Delete failed. Please try again.');
+    }
+  };
+
   // Compares our price vs competitor price and returns a label + color
   // using the same increase/decrease tokens used everywhere else in the app.
   const getComparison = (ourPrice, competitorPrice) => {
+    if (ourPrice == null) {
+      return { label: 'No product price', color: tokens.inkSoft, bg: tokens.structureSoft, icon: null };
+    }
     if (ourPrice < competitorPrice) {
       return { label: 'We are cheaper', color: tokens.increase, bg: tokens.increaseSoft, icon: <ArrowDownwardIcon fontSize="small" /> };
     }
@@ -114,13 +140,14 @@ export default function CompetitorPricing() {
               <TableCell sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>Our Price</TableCell>
               <TableCell sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>Competitor Price</TableCell>
               <TableCell sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>Comparison</TableCell>
+              <TableCell align="right" sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading &&
               Array.from({ length: 4 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 5 }).map((__, j) => (
+                  {Array.from({ length: 6 }).map((__, j) => (
                     <TableCell key={j}>
                       <Skeleton variant="text" />
                     </TableCell>
@@ -130,7 +157,7 @@ export default function CompetitorPricing() {
 
             {!loading && items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} align="center" sx={{ py: 6, color: tokens.inkSoft }}>
+                <TableCell colSpan={6} align="center" sx={{ py: 6, color: tokens.inkSoft }}>
                   No competitor prices yet. Click "Add Competitor Price" to add your first entry.
                 </TableCell>
               </TableRow>
@@ -140,7 +167,7 @@ export default function CompetitorPricing() {
               items.map((item) => {
                 const comparison = getComparison(item.ourPrice, item.competitorPrice);
                 return (
-                  <TableRow key={item._id || item.productId} hover>
+                  <TableRow key={item.id} hover>
                     <TableCell>{item.productName}</TableCell>
                     <TableCell sx={{ color: tokens.inkSoft }}>{item.competitorName}</TableCell>
                     <TableCell>
@@ -161,6 +188,11 @@ export default function CompetitorPricing() {
                           '& .MuiChip-icon': { color: comparison.color },
                         }}
                       />
+                    </TableCell>
+                    <TableCell align="right">
+                      <IconButton size="small" onClick={() => handleDelete(item)}>
+                        <DeleteOutlineIcon fontSize="small" sx={{ color: tokens.decrease }} />
+                      </IconButton>
                     </TableCell>
                   </TableRow>
                 );
