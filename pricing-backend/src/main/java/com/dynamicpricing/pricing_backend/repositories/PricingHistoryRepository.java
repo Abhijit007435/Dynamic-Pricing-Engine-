@@ -16,4 +16,5 @@ public interface PricingHistoryRepository
             Optional<PricingHistory>
 findTopByProductIdOrderByCreatedAtDesc(
         String productId);
+        List<PricingHistory> findTop10ByOrderByCreatedAtDesc();
 }
