@@ -11,4 +11,5 @@ import org.springframework.stereotype.Repository;
 public interface PricingHistoryRepository
         extends MongoRepository<PricingHistory, String> {
             List<PricingHistory> findByProductId(String productId);
+            void deleteByProductId(String productId);
 }
