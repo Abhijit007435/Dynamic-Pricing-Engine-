@@ -1,5 +1,6 @@
 package com.dynamicpricing.pricing_backend.services;
 
+import com.dynamicpricing.pricing_backend.dtos.PriceComparisonDTO;
 import com.dynamicpricing.pricing_backend.dtos.PricingRecommendationDTO;
 import com.dynamicpricing.pricing_backend.exception.ResourceNotFoundException;
 import com.dynamicpricing.pricing_backend.models.*;
@@ -178,4 +179,36 @@ public class PricingEngineService {
                 reason.toString()
         );
     }
+    public PriceComparisonDTO getPriceComparison(@NonNull     String productId) {
+
+    Product product = productRepository.findById(productId)
+            .orElseThrow(() ->
+                    new ResourceNotFoundException("Product not found"));
+
+    CompetitorPrice competitorPrice = competitorPriceRepository
+            .findTopByProductIdOrderByUpdatedAtDesc(productId)
+            .orElseThrow(() ->
+                    new ResourceNotFoundException("Competitor price not found"));
+
+    double difference =
+            product.getCurrentPrice() - competitorPrice.getCompetitorPrice();
+
+    String status;
+
+    if (difference > 0) {
+        status = "MORE_EXPENSIVE";
+    } else if (difference < 0) {
+        status = "CHEAPER";
+    } else {
+        status = "SAME_PRICE";
+    }
+
+    return new PriceComparisonDTO(
+            product.getProductName(),
+            product.getCurrentPrice(),
+            competitorPrice.getCompetitorPrice(),
+            Math.abs(difference),
+            status
+    );
+}
 }

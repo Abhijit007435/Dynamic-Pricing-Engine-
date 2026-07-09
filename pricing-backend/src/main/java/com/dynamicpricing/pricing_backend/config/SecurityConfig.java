@@ -27,10 +27,10 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
 
                 // 3. Demands Authentication for EVERY single request
-                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
 
                 // 4. Uses standard Basic Auth (Username & Password)
-                .httpBasic(Customizer.withDefaults());
+               // .httpBasic(Customizer.withDefaults());
 
         return http.build();
     }
