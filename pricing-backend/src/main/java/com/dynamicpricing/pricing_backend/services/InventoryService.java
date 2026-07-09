@@ -31,23 +31,46 @@ public class InventoryService {
         return repository.findById(id);
     }
 
-    @SuppressWarnings("null")
-    public Inventory saveInventory(@NonNull Inventory inventory) {
-        productRepository.findById(inventory.getProductId())
-        .orElseThrow(() ->
-                new ResourceNotFoundException(
-                        "Product not found with id: "
-                                + inventory.getProductId()));
+@SuppressWarnings("null")
+public Inventory saveInventory(@NonNull Inventory inventory) {
+
+    productRepository.findById(inventory.getProductId())
+            .orElseThrow(() ->
+                    new ResourceNotFoundException(
+                            "Product not found with id: "
+                                    + inventory.getProductId()));
+
+    Optional<Inventory> existingInventory =
+            repository.findByProductId(
+                    inventory.getProductId());
+
+    Inventory savedInventory;
+
+    if (existingInventory.isPresent()) {
+
+        Inventory existing =
+                existingInventory.get();
+
+        existing.setAvailableQuantity(
+                existing.getAvailableQuantity()
+                        + inventory.getAvailableQuantity());
+
+        existing.setUpdatedAt(LocalDateTime.now());
+
+        savedInventory = repository.save(existing);
+
+    } else {
 
         inventory.setUpdatedAt(LocalDateTime.now());
 
-        Inventory savedInventory = repository.save(inventory);
-
-        pricingEngineService.generateRecommendation(
-        savedInventory.getProductId());
-        return savedInventory;
+        savedInventory = repository.save(inventory);
     }
 
+    pricingEngineService.generateRecommendation(
+            savedInventory.getProductId());
+
+    return savedInventory;
+}
     @SuppressWarnings("null")
     public Inventory updateInventory(
             @NonNull String id,
