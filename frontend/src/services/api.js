@@ -2,11 +2,16 @@ import axios from 'axios';
 
 // TODO: replace with your deployed backend URL once Backend team gives it to you.
 // Keep this as the ONLY place base URL is defined — never hardcode URLs in pages.
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
 const api = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
+  // Spring Security Basic Auth Credentials
+  auth: {
+    username: 'user', // Default username
+    password: '4724092a-1b2f-4cc1-ac22-1e500f07c04b' // Replace with the password from your Spring Boot console
+  }
 });
 
 // ---- Product APIs ----
