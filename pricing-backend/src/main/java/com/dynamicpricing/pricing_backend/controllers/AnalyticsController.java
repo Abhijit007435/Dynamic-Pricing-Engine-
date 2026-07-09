@@ -6,7 +6,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.dynamicpricing.pricing_backend.dtos.DashboardRecommendationDTO;
 import com.dynamicpricing.pricing_backend.dtos.DashboardSummaryDTO;
+import com.dynamicpricing.pricing_backend.dtos.PriceChangeDTO;
 import com.dynamicpricing.pricing_backend.dtos.RecommendationDTO;
 import com.dynamicpricing.pricing_backend.models.Inventory;
 import com.dynamicpricing.pricing_backend.services.AnalyticsService;
@@ -37,6 +39,21 @@ public ResponseEntity<List<Inventory>> getLowInventoryProducts() {
 
     return ResponseEntity.ok(
             analyticsService.getLowInventoryProducts()
+    );
+}
+@GetMapping("/price-changes")
+public ResponseEntity<List<PriceChangeDTO>> getPriceChanges() {
+
+    return ResponseEntity.ok(
+            analyticsService.getPriceChanges()
+    );
+}
+@GetMapping("/dashboard-recommendations")
+public ResponseEntity<List<DashboardRecommendationDTO>>
+getDashboardRecommendations() {
+
+    return ResponseEntity.ok(
+            analyticsService.getDashboardRecommendations()
     );
 }
 }

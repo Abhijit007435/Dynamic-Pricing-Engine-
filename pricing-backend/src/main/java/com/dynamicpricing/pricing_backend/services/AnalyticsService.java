@@ -1,12 +1,17 @@
 package com.dynamicpricing.pricing_backend.services;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
+import com.dynamicpricing.pricing_backend.dtos.DashboardRecommendationDTO;
 import com.dynamicpricing.pricing_backend.dtos.DashboardSummaryDTO;
+import com.dynamicpricing.pricing_backend.dtos.PriceChangeDTO;
 import com.dynamicpricing.pricing_backend.dtos.RecommendationDTO;
 import com.dynamicpricing.pricing_backend.models.Inventory;
+import com.dynamicpricing.pricing_backend.models.PricingHistory;
 import com.dynamicpricing.pricing_backend.models.Product;
 import com.dynamicpricing.pricing_backend.repositories.InventoryRepository;
 import com.dynamicpricing.pricing_backend.repositories.PricingHistoryRepository;
@@ -69,6 +74,90 @@ public List<Inventory> getLowInventoryProducts() {
     return inventoryRepository.findAll()
             .stream()
             .filter(inventory -> inventory.getAvailableQuantity() < 20)
+            .toList();
+}
+@SuppressWarnings("null")
+public List<PriceChangeDTO> getPriceChanges() {
+
+    return pricingHistoryRepository.findAll()
+            .stream()
+            .map(history -> {
+
+                Product product = productRepository
+                        .findById(history.getProductId())
+                        .orElse(null);
+
+                String productName =
+                        product != null
+                                ? product.getProductName()
+                                : "Unknown Product";
+
+                return new PriceChangeDTO(
+                        productName,
+                        history.getOldPrice(),
+                        history.getRecommendedPrice(),
+                        history.getCreatedAt()
+                );
+            })
+            .toList();
+}
+@SuppressWarnings("null")
+public List<DashboardRecommendationDTO> getDashboardRecommendations() {
+
+    Map<String, PricingHistory> latestRecommendations = new HashMap<>();
+
+    pricingHistoryRepository.findAll().forEach(history -> {
+
+        PricingHistory existing =
+                latestRecommendations.get(history.getProductId());
+
+        if (existing == null ||
+                history.getCreatedAt().isAfter(existing.getCreatedAt())) {
+
+            latestRecommendations.put(
+                    history.getProductId(),
+                    history
+            );
+        }
+    });
+
+    return latestRecommendations.values()
+            .stream()
+            .map(history -> {
+
+                Product product = productRepository
+                        .findById(history.getProductId())
+                        .orElse(null);
+
+                Inventory inventory = inventoryRepository
+                        .findByProductId(history.getProductId())
+                        .orElse(null);
+
+                String stockStatus = "UNKNOWN";
+
+                if (inventory != null) {
+
+                    int quantity =
+                            inventory.getAvailableQuantity();
+
+                    if (quantity < 20) {
+                        stockStatus = "LOW";
+                    } else if (quantity > 100) {
+                        stockStatus = "HIGH";
+                    } else {
+                        stockStatus = "NORMAL";
+                    }
+                }
+
+                return new DashboardRecommendationDTO(
+                        product != null
+                                ? product.getProductName()
+                                : "Unknown Product",
+                        history.getOldPrice(),
+                        history.getRecommendedPrice(),
+                        stockStatus
+                );
+            })
             .toList();
 }
 }
