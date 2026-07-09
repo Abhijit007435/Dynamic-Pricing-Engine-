@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   Box,
   Paper,
@@ -19,11 +19,9 @@ import {
   Skeleton,
   Typography,
   IconButton,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   InputAdornment,
+  Autocomplete,
+  Snackbar,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -47,21 +45,32 @@ export default function CompetitorPricing() {
   const [form, setForm] = useState({ productId: '', competitorName: '', competitorPrice: '' });
   const [saving, setSaving] = useState(false);
 
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [pendingDeletes, setPendingDeletes] = useState({});
+
+  const showSnackbar = (message, severity = 'success', undoId = null) => {
+    setSnackbar({ open: true, message, severity, undoId });
+  };
+
   const fetchItems = async () => {
     setLoading(true);
     setError(null);
     try {
       const [compRes, prodRes] = await Promise.all([getCompetitorPrices(), getProducts()]);
-      setProducts(prodRes.data);
+      
+      const sanitizedProducts = prodRes.data.map(p => ({
+        ...p,
+        id: p.id || p._id
+      }));
+      setProducts(sanitizedProducts);
 
       const productsById = {};
-      prodRes.data.forEach((p) => {
-        productsById[p.id || p._id] = p;
+      sanitizedProducts.forEach((p) => {
+        productsById[p.id] = p;
       });
 
       const merged = compRes.data.map((item) => ({
         ...item,
-        // ✅ BUG FIX: Changed .name to .productName
         productName: productsById[item.productId]?.productName || 'Unknown Product',
         ourPrice: productsById[item.productId]?.currentPrice ?? null,
       }));
@@ -75,6 +84,9 @@ export default function CompetitorPricing() {
 
   useEffect(() => {
     fetchItems();
+    return () => {
+      Object.values(pendingDeletes).forEach(({ timeoutId }) => clearTimeout(timeoutId));
+    };
   }, []);
 
   const openAddDialog = () => {
@@ -93,55 +105,92 @@ export default function CompetitorPricing() {
     setDialogOpen(true);
   };
 
-  const handleSave = async () => {
+  const selectedProduct = products.find((p) => p.id === form.productId) || null;
+
+  // SMART FIX: Check matching by name to catch case-insensitive overlaps across different product IDs
+  const duplicateRecord = useMemo(() => {
+    if (editingItem || !selectedProduct || !form.competitorName.trim()) return null;
+    return items.find(
+      (item) =>
+        item.productName.toLowerCase() === selectedProduct.productName.toLowerCase() &&
+        item.competitorName.toLowerCase() === form.competitorName.trim().toLowerCase()
+    );
+  }, [selectedProduct, form.competitorName, items, editingItem]);
+
+  const handleSave = async (forceAddNew = false) => {
     if (!form.productId || !form.competitorName || !form.competitorPrice) {
-      setError('Please fill in all details.');
+      showSnackbar('Please fill in all details.', 'error');
       return;
     }
+
+    const price = Number(form.competitorPrice);
+    if (form.competitorPrice === '' || Number.isNaN(price) || price < 0) {
+      showSnackbar('Please enter a valid price.', 'error');
+      return;
+    }
+
     setSaving(true);
+    const payload = {
+      productId: form.productId,
+      competitorName: form.competitorName.trim(),
+      competitorPrice: price,
+    };
+
     try {
-      const payload = {
-        productId: form.productId,
-        competitorName: form.competitorName.trim(),
-        competitorPrice: Number(form.competitorPrice),
-      };
-
       if (editingItem) {
-        // Direct update if opened via Edit button (uses the new updateCompetitorPrice from api.js)
         await updateCompetitorPrice(editingItem.id, payload);
+        showSnackbar('Competitor price updated successfully.', 'success');
+      } else if (duplicateRecord && !forceAddNew) {
+        // Overwrite the matched duplicate item
+        await updateCompetitorPrice(duplicateRecord.id, payload);
+        showSnackbar(`Overwritten tracking data for ${payload.competitorName}.`, 'success');
       } else {
-        // ✅ BUG FIX: Added .toLowerCase() to handle case-sensitivity (Zenith vs zenith)
-        const duplicate = items.find(
-          (item) =>
-            item.productId === form.productId &&
-            item.competitorName.toLowerCase() === form.competitorName.trim().toLowerCase()
-        );
-
-        if (duplicate) {
-          // Instead of duplicating, trigger an automatic background update!
-          await updateCompetitorPrice(duplicate.id, payload);
-        } else {
-          // Fresh insert
-          await addCompetitorPrice(payload);
-        }
+        // Fresh Insert (Either no duplicate OR user forced a new row)
+        await addCompetitorPrice(payload);
+        showSnackbar('Competitor pricing record added successfully.', 'success');
       }
       setDialogOpen(false);
       fetchItems();
     } catch (err) {
-      setError('Save failed. Please try again.');
+      showSnackbar('Save failed. Please try again.', 'error');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (item) => {
-    if (!window.confirm(`Delete competitor price entry from "${item.competitorName}"?`)) return;
-    try {
-      await deleteCompetitorPrice(item.id);
-      fetchItems();
-    } catch (err) {
-      setError('Delete failed. Please try again.');
-    }
+  const handleDelete = (item) => {
+    setPendingDeletes((prev) => {
+      const timeoutId = setTimeout(() => {
+        deleteCompetitorPrice(item.id)
+          .then(() => fetchItems())
+          .catch(() => showSnackbar(`Failed to remove entry from "${item.competitorName}".`, 'error'));
+        setPendingDeletes((p) => {
+          const next = { ...p };
+          delete next[item.id];
+          return next;
+        });
+      }, 5000);
+
+      return { ...prev, [item.id]: { item, timeoutId } };
+    });
+
+    setSnackbar({
+      open: true,
+      message: `Deleting entry from "${item.competitorName}"...`,
+      severity: 'info',
+      undoId: item.id,
+    });
+  };
+
+  const handleUndoDelete = (id) => {
+    setPendingDeletes((prev) => {
+      const entry = prev[id];
+      if (entry) clearTimeout(entry.timeoutId);
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    showSnackbar('Delete undone.', 'success');
   };
 
   const getComparison = (ourPrice, competitorPrice) => {
@@ -157,12 +206,30 @@ export default function CompetitorPricing() {
     return { label: 'Same price', color: tokens.inkSoft, bg: tokens.structureSoft, icon: null };
   };
 
-  // Live client-side filtering logic based on user input
-  const filteredItems = items.filter(
-    (item) =>
-      item.competitorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.productName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const getPriceDiffPercentage = (ourPrice, competitorPrice) => {
+    if (!ourPrice || !competitorPrice) return null;
+    const diff = competitorPrice - ourPrice;
+    const percent = (diff / ourPrice) * 100;
+    const formatted = percent.toFixed(1);
+    
+    if (percent < 0) {
+      return { text: `${Math.abs(percent).toFixed(1)}% Lower`, color: tokens.decrease };
+    } else if (percent > 0) {
+      return { text: `+${formatted}% Higher`, color: tokens.increase };
+    }
+    return { text: 'Equal', color: tokens.inkSoft };
+  };
+
+  const filteredItems = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return items.filter((item) => {
+      if (pendingDeletes[item.id]) return false;
+      return (
+        item.competitorName.toLowerCase().includes(q) ||
+        item.productName.toLowerCase().includes(q)
+      );
+    });
+  }, [items, searchQuery, pendingDeletes]);
 
   return (
     <Box>
@@ -178,8 +245,7 @@ export default function CompetitorPricing() {
         </Button>
       </Box>
 
-      {/* Live Table Search bar */}
-      <Box sx={{ mb: 3, maxWidth: '400px' }}>
+      <Box sx={{ mb: 2, maxWidth: '360px' }}>
         <TextField
           fullWidth
           size="small"
@@ -189,7 +255,7 @@ export default function CompetitorPricing() {
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
-                <SearchIcon sx={{ color: tokens.inkSoft }} />
+                <SearchIcon sx={{ color: tokens.inkSoft, fontSize: 20 }} />
               </InputAdornment>
             ),
           }}
@@ -237,15 +303,26 @@ export default function CompetitorPricing() {
             {!loading &&
               filteredItems.map((item) => {
                 const comparison = getComparison(item.ourPrice, item.competitorPrice);
+                const percentDiff = getPriceDiffPercentage(item.ourPrice, item.competitorPrice);
                 return (
                   <TableRow key={item.id} hover>
-                    <TableCell>{item.productName}</TableCell>
-                    <TableCell sx={{ color: tokens.inkSoft }}>{item.competitorName}</TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{item.productName}</Typography>
+                      <Typography variant="caption" sx={{ fontFamily: '"JetBrains Mono", monospace', color: tokens.inkSoft, opacity: 0.7, fontSize: '11px' }}>
+                        ID: {item.productId}
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={{ color: tokens.inkSoft, fontWeight: 500 }}>{item.competitorName}</TableCell>
                     <TableCell>
                       <PriceTag value={item.ourPrice} />
                     </TableCell>
                     <TableCell>
                       <PriceTag value={item.competitorPrice} />
+                      {percentDiff && (
+                        <Box sx={{ fontSize: '11px', fontWeight: 500, color: percentDiff.color, mt: 0.2 }}>
+                          ({percentDiff.text})
+                        </Box>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Chip
@@ -275,31 +352,37 @@ export default function CompetitorPricing() {
         </Table>
       </TableContainer>
 
+      {/* Main Form Dialog Layout with Multi-Option Choice Buttons */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>
           {editingItem ? 'Edit Competitor Data' : 'Add Competitor Pricing'}
         </DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: 2 }}>
           
-          <FormControl fullWidth disabled={!!editingItem} sx={{ mt: 1 }}>
-            <InputLabel id="comp-product-select-label">Select Product</InputLabel>
-            <Select
-              labelId="comp-product-select-label"
-              label="Select Product"
-              value={form.productId}
-              onChange={(e) => setForm({ ...form, productId: e.target.value })}
-            >
-              {products.map((prod) => (
-                <MenuItem key={prod.id} value={prod.id}>
-                  {/* ✅ BUG FIX: Changed prod.name to prod.productName */}
-                  {prod.productName}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <Autocomplete
+            disabled={!!editingItem}
+            options={products}
+            getOptionLabel={(option) => option.productName || ''}
+            value={selectedProduct}
+            onChange={(event, newValue) => {
+              setForm({ ...form, productId: newValue ? newValue.id : '' });
+            }}
+            autoHighlight
+            filterOptions={(options, state) => {
+              const search = state.inputValue.toLowerCase();
+              return options.filter(option => 
+                (option.productName || '').toLowerCase().includes(search)
+              );
+            }}
+            renderInput={(params) => (
+              <TextField {...params} label="Select Product" placeholder="Type to search product name..." sx={{ mt: 1 }} />
+            )}
+            noOptionsText="No matching products found"
+          />
 
           <TextField
             label="Competitor Name"
+            placeholder="e.g. Amazon, Flipkart"
             value={form.competitorName}
             onChange={(e) => setForm({ ...form, competitorName: e.target.value })}
             disabled={!!editingItem}
@@ -312,14 +395,71 @@ export default function CompetitorPricing() {
             onChange={(e) => setForm({ ...form, competitorPrice: e.target.value })}
             fullWidth
           />
+
+          {duplicateRecord && (
+            <Alert severity="warning" sx={{ mt: 1, '& .MuiAlert-message': { width: '100%' } }}>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>Price Tracking Conflict</Typography>
+              <Typography variant="caption" component="p" sx={{ mt: 0.5, lineHeight: 1.4 }}>
+                A record for <strong>{duplicateRecord.competitorName}</strong> under product name "{duplicateRecord.productName}" already exists (Price: <strong>₹{duplicateRecord.competitorPrice}</strong>). 
+                <br />Choose whether to overwrite it or log it as a separate model.
+              </Typography>
+            </Alert>
+          )}
+
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
+        <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'space-between' }}>
           <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" color="secondary" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving...' : 'Save'}
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            {duplicateRecord && (
+              <Button 
+                variant="outlined" 
+                color="secondary" 
+                onClick={() => handleSave(true)} 
+                disabled={saving}
+              >
+                Add as New
+              </Button>
+            )}
+            <Button 
+              variant="contained" 
+              color={duplicateRecord ? "error" : "secondary"} 
+              onClick={() => handleSave(false)} 
+              disabled={saving}
+            >
+              {saving ? 'Saving...' : duplicateRecord ? 'Overwrite' : 'Save'}
+            </Button>
+          </Box>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={snackbar.undoId ? 5000 : 3500}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+          action={
+            snackbar.undoId ? (
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() => {
+                  handleUndoDelete(snackbar.undoId);
+                  setSnackbar((prev) => ({ ...prev, open: false }));
+                }}
+              >
+                UNDO
+              </Button>
+            ) : undefined
+          }
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
