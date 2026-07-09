@@ -1,6 +1,7 @@
 package com.dynamicpricing.pricing_backend.services;
 
 import com.dynamicpricing.pricing_backend.dtos.InventoryStatusDTO;
+import com.dynamicpricing.pricing_backend.exception.ResourceNotFoundException;
 import com.dynamicpricing.pricing_backend.models.Inventory;
 import com.dynamicpricing.pricing_backend.models.Product;
 import com.dynamicpricing.pricing_backend.repositories.InventoryRepository;
@@ -32,20 +33,18 @@ public class InventoryService {
 
     @SuppressWarnings("null")
     public Inventory saveInventory(@NonNull Inventory inventory) {
+        productRepository.findById(inventory.getProductId())
+        .orElseThrow(() ->
+                new ResourceNotFoundException(
+                        "Product not found with id: "
+                                + inventory.getProductId()));
 
         inventory.setUpdatedAt(LocalDateTime.now());
 
         Inventory savedInventory = repository.save(inventory);
 
-        try {
-            pricingEngineService.generateRecommendation(
-                    savedInventory.getProductId());
-        } catch (Exception e) {
-            System.out.println(
-                    "Pricing recommendation failed: "
-                            + e.getMessage());
-        }
-
+        pricingEngineService.generateRecommendation(
+        savedInventory.getProductId());
         return savedInventory;
     }
 
@@ -53,7 +52,11 @@ public class InventoryService {
     public Inventory updateInventory(
             @NonNull String id,
             Inventory updatedData) {
-
+productRepository.findById(updatedData.getProductId())
+        .orElseThrow(() ->
+                new ResourceNotFoundException(
+                        "Product not found with id: "
+                                + updatedData.getProductId()));
         Optional<Inventory> existingInventory =
                 repository.findById(id);
 
@@ -65,8 +68,12 @@ public class InventoryService {
             inventory.setProductId(
                     updatedData.getProductId());
 
-            inventory.setAvailableQuantity(
-                    updatedData.getAvailableQuantity());
+            int newQuantity =
+        inventory.getAvailableQuantity()
+                + updatedData.getAvailableQuantity();
+
+inventory.setAvailableQuantity(
+        Math.max(0, newQuantity));
 
             inventory.setUpdatedAt(
                     LocalDateTime.now());
@@ -74,20 +81,13 @@ public class InventoryService {
             Inventory savedInventory =
                     repository.save(inventory);
 
-            try {
-                pricingEngineService.generateRecommendation(
-                        savedInventory.getProductId());
-            } catch (Exception e) {
-                System.out.println(
-                        "Pricing recommendation failed: "
-                                + e.getMessage());
-            }
-
+           pricingEngineService.generateRecommendation(
+        savedInventory.getProductId());
             return savedInventory;
         }
 
-        throw new RuntimeException(
-                "Inventory record not found with id: " + id);
+       throw new ResourceNotFoundException(
+        "Inventory record not found with id: " + id);
     }
 
     public void deleteInventory(@NonNull String id) {
@@ -108,13 +108,15 @@ public List<InventoryStatusDTO> getInventoryStatus() {
 
                 String stockStatus;
 
-                if (inventory.getAvailableQuantity() < 20) {
-                    stockStatus = "LOW";
-                } else if (inventory.getAvailableQuantity() <= 100) {
-                    stockStatus = "MEDIUM";
-                } else {
-                    stockStatus = "HIGH";
-                }
+                if (inventory.getAvailableQuantity() <= 0) {
+    stockStatus = "OUT_OF_STOCK";
+} else if (inventory.getAvailableQuantity() < 20) {
+    stockStatus = "LOW";
+} else if (inventory.getAvailableQuantity() <= 100) {
+    stockStatus = "MEDIUM";
+} else {
+    stockStatus = "HIGH";
+}
 
                 return new InventoryStatusDTO(
                         productName,
