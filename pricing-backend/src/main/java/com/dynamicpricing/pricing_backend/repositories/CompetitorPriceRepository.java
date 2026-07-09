@@ -12,4 +12,5 @@ public interface CompetitorPriceRepository
     List<CompetitorPrice> findByProductId(String productId);
     Optional<CompetitorPrice>
 findTopByProductIdOrderByCompetitorPriceAsc(String productId);
+ void deleteByProductId(String productId);
 }

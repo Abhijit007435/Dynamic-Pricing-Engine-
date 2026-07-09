@@ -11,21 +11,41 @@ import java.time.LocalDateTime;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<ErrorResponse>
-    handleRuntimeException(RuntimeException ex) {
+        //resource not found exception
+@ExceptionHandler(ResourceNotFoundException.class)
+public ResponseEntity<ErrorResponse>
+handleResourceNotFoundException(
+        ResourceNotFoundException ex) {
 
-        ErrorResponse error =
-                new ErrorResponse(
-                        ex.getMessage(),
-                        HttpStatus.NOT_FOUND.value(),
-                        LocalDateTime.now()
-                );
+    ErrorResponse error =
+            new ErrorResponse(
+                    ex.getMessage(),
+                    HttpStatus.NOT_FOUND.value(),
+                    LocalDateTime.now());
 
-        return ResponseEntity
-                .status(HttpStatus.NOT_FOUND)
-                .body(error);
-    }
+    return ResponseEntity
+            .status(HttpStatus.NOT_FOUND)
+            .body(error);
+}
+
+//bad request exception
+@ExceptionHandler(BadRequestException.class)
+public ResponseEntity<ErrorResponse>
+handleBadRequestException(
+        BadRequestException ex) {
+
+    ErrorResponse error =
+            new ErrorResponse(
+                    ex.getMessage(),
+                    HttpStatus.BAD_REQUEST.value(),
+                    LocalDateTime.now());
+
+    return ResponseEntity
+            .badRequest()
+            .body(error);
+}
+
+//validation exception
     @SuppressWarnings("null")
     @ExceptionHandler(MethodArgumentNotValidException.class)
 public ResponseEntity<ErrorResponse>
