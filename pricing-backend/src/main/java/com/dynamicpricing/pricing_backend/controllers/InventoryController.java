@@ -1,5 +1,6 @@
 package com.dynamicpricing.pricing_backend.controllers;
 
+import com.dynamicpricing.pricing_backend.dtos.InventoryStatusDTO;
 import com.dynamicpricing.pricing_backend.models.Inventory;
 import com.dynamicpricing.pricing_backend.services.InventoryService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,7 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/inventory")
+@RequestMapping("/api/inventory")
 public class InventoryController {
 
     @Autowired
@@ -39,7 +40,7 @@ public class InventoryController {
     // POST /inventory
     @PostMapping
     public ResponseEntity<Inventory> addInventory(
-            @RequestBody Inventory inventory) {
+            @RequestBody @NonNull Inventory inventory) {
 
         Inventory savedInventory = inventoryService.saveInventory(inventory);
 
@@ -83,4 +84,12 @@ public class InventoryController {
 
         return ResponseEntity.ok("Inventory record deleted successfully");
     }
+    @GetMapping("/status")
+public ResponseEntity<List<InventoryStatusDTO>>
+getInventoryStatus() {
+
+    return ResponseEntity.ok(
+            inventoryService.getInventoryStatus()
+    );
+}
 }

@@ -1,5 +1,6 @@
 package com.dynamicpricing.pricing_backend.controllers;
 
+import com.dynamicpricing.pricing_backend.dtos.PricingHistoryResponseDTO;
 import com.dynamicpricing.pricing_backend.models.PricingHistory;
 import com.dynamicpricing.pricing_backend.services.PricingHistoryService;
 
@@ -32,9 +33,20 @@ public class PricingHistoryController {
     }
 
     @GetMapping
-    public ResponseEntity<List<PricingHistory>> getAllHistory() {
-        return ResponseEntity.ok(
-                pricingHistoryService.getAllHistory()
-        );
-    }
+public ResponseEntity<List<PricingHistoryResponseDTO>>
+getAllHistory() {
+
+    return ResponseEntity.ok(
+            pricingHistoryService.getAllHistoryDTO()
+    );
+}
+@GetMapping("/product/{productId}")
+public ResponseEntity<List<PricingHistoryResponseDTO>>
+getHistoryByProductId(
+        @PathVariable String productId) {
+
+    return ResponseEntity.ok(
+            pricingHistoryService.getHistoryByProductIdDTO(productId)
+    );
+}
 }
