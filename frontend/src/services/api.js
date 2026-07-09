@@ -34,6 +34,7 @@ export const deleteInventory = (id) => api.delete(`/inventory/${id}`);
 // ---- Competitor Price APIs (used by Dev 2) ----
 export const getCompetitorPrices = () => api.get('/competitor-prices');
 export const addCompetitorPrice = (data) => api.post('/competitor-prices', data);
+export const updateCompetitorPrice = (id, data) => api.put(`/competitor-prices/${id}`, data); // ✅ YEH RAHA FIX
 export const deleteCompetitorPrice = (id) => api.delete(`/competitor-prices/${id}`);
 
 // ---- Pricing Engine APIs (used by Dev 2) ----

@@ -19,21 +19,31 @@ import {
   Skeleton,
   Typography,
   IconButton,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  InputAdornment,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
+import SearchIcon from '@mui/icons-material/Search';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { tokens } from '../theme';
 import PriceTag from '../components/PriceTag';
-import { getCompetitorPrices, addCompetitorPrice, deleteCompetitorPrice, getProducts } from '../services/api';
+import { getCompetitorPrices, addCompetitorPrice, updateCompetitorPrice, deleteCompetitorPrice, getProducts } from '../services/api';
 
 export default function CompetitorPricing() {
   const [items, setItems] = useState([]);
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
   const [form, setForm] = useState({ productId: '', competitorName: '', competitorPrice: '' });
   const [saving, setSaving] = useState(false);
 
@@ -41,15 +51,17 @@ export default function CompetitorPricing() {
     setLoading(true);
     setError(null);
     try {
-      // CompetitorPrice model has neither productName nor ourPrice on the backend —
-      // fetch products alongside and join by productId to get both.
       const [compRes, prodRes] = await Promise.all([getCompetitorPrices(), getProducts()]);
+      setProducts(prodRes.data);
+
       const productsById = {};
       prodRes.data.forEach((p) => {
         productsById[p.id || p._id] = p;
       });
+
       const merged = compRes.data.map((item) => ({
         ...item,
+        // ✅ BUG FIX: Changed .name to .productName
         productName: productsById[item.productId]?.productName || 'Unknown Product',
         ourPrice: productsById[item.productId]?.currentPrice ?? null,
       }));
@@ -66,17 +78,53 @@ export default function CompetitorPricing() {
   }, []);
 
   const openAddDialog = () => {
+    setEditingItem(null);
     setForm({ productId: '', competitorName: '', competitorPrice: '' });
     setDialogOpen(true);
   };
 
+  const openEditDialog = (item) => {
+    setEditingItem(item);
+    setForm({
+      productId: item.productId,
+      competitorName: item.competitorName,
+      competitorPrice: item.competitorPrice,
+    });
+    setDialogOpen(true);
+  };
+
   const handleSave = async () => {
+    if (!form.productId || !form.competitorName || !form.competitorPrice) {
+      setError('Please fill in all details.');
+      return;
+    }
     setSaving(true);
     try {
-      await addCompetitorPrice({
-        ...form,
+      const payload = {
+        productId: form.productId,
+        competitorName: form.competitorName.trim(),
         competitorPrice: Number(form.competitorPrice),
-      });
+      };
+
+      if (editingItem) {
+        // Direct update if opened via Edit button (uses the new updateCompetitorPrice from api.js)
+        await updateCompetitorPrice(editingItem.id, payload);
+      } else {
+        // ✅ BUG FIX: Added .toLowerCase() to handle case-sensitivity (Zenith vs zenith)
+        const duplicate = items.find(
+          (item) =>
+            item.productId === form.productId &&
+            item.competitorName.toLowerCase() === form.competitorName.trim().toLowerCase()
+        );
+
+        if (duplicate) {
+          // Instead of duplicating, trigger an automatic background update!
+          await updateCompetitorPrice(duplicate.id, payload);
+        } else {
+          // Fresh insert
+          await addCompetitorPrice(payload);
+        }
+      }
       setDialogOpen(false);
       fetchItems();
     } catch (err) {
@@ -96,8 +144,6 @@ export default function CompetitorPricing() {
     }
   };
 
-  // Compares our price vs competitor price and returns a label + color
-  // using the same increase/decrease tokens used everywhere else in the app.
   const getComparison = (ourPrice, competitorPrice) => {
     if (ourPrice == null) {
       return { label: 'No product price', color: tokens.inkSoft, bg: tokens.structureSoft, icon: null };
@@ -111,6 +157,13 @@ export default function CompetitorPricing() {
     return { label: 'Same price', color: tokens.inkSoft, bg: tokens.structureSoft, icon: null };
   };
 
+  // Live client-side filtering logic based on user input
+  const filteredItems = items.filter(
+    (item) =>
+      item.competitorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.productName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mb: 3 }}>
@@ -123,6 +176,24 @@ export default function CompetitorPricing() {
         <Button variant="contained" color="secondary" startIcon={<AddIcon />} onClick={openAddDialog}>
           Add Competitor Price
         </Button>
+      </Box>
+
+      {/* Live Table Search bar */}
+      <Box sx={{ mb: 3, maxWidth: '400px' }}>
+        <TextField
+          fullWidth
+          size="small"
+          placeholder="Search competitor or product..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ color: tokens.inkSoft }} />
+              </InputAdornment>
+            ),
+          }}
+        />
       </Box>
 
       {error && (
@@ -155,16 +226,16 @@ export default function CompetitorPricing() {
                 </TableRow>
               ))}
 
-            {!loading && items.length === 0 && (
+            {!loading && filteredItems.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} align="center" sx={{ py: 6, color: tokens.inkSoft }}>
-                  No competitor prices yet. Click "Add Competitor Price" to add your first entry.
+                  No competitor records match your view.
                 </TableCell>
               </TableRow>
             )}
 
             {!loading &&
-              items.map((item) => {
+              filteredItems.map((item) => {
                 const comparison = getComparison(item.ourPrice, item.competitorPrice);
                 return (
                   <TableRow key={item.id} hover>
@@ -190,6 +261,9 @@ export default function CompetitorPricing() {
                       />
                     </TableCell>
                     <TableCell align="right">
+                      <IconButton size="small" onClick={() => openEditDialog(item)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
                       <IconButton size="small" onClick={() => handleDelete(item)}>
                         <DeleteOutlineIcon fontSize="small" sx={{ color: tokens.decrease }} />
                       </IconButton>
@@ -203,20 +277,32 @@ export default function CompetitorPricing() {
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>
-          Add Competitor Price
+          {editingItem ? 'Edit Competitor Data' : 'Add Competitor Pricing'}
         </DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-          <TextField
-            label="Product ID"
-            value={form.productId}
-            onChange={(e) => setForm({ ...form, productId: e.target.value })}
-            fullWidth
-            helperText="Must match an existing product's ID"
-          />
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: 2 }}>
+          
+          <FormControl fullWidth disabled={!!editingItem} sx={{ mt: 1 }}>
+            <InputLabel id="comp-product-select-label">Select Product</InputLabel>
+            <Select
+              labelId="comp-product-select-label"
+              label="Select Product"
+              value={form.productId}
+              onChange={(e) => setForm({ ...form, productId: e.target.value })}
+            >
+              {products.map((prod) => (
+                <MenuItem key={prod.id} value={prod.id}>
+                  {/* ✅ BUG FIX: Changed prod.name to prod.productName */}
+                  {prod.productName}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
           <TextField
             label="Competitor Name"
             value={form.competitorName}
             onChange={(e) => setForm({ ...form, competitorName: e.target.value })}
+            disabled={!!editingItem}
             fullWidth
           />
           <TextField
