@@ -1,10 +1,13 @@
 package com.dynamicpricing.pricing_backend.services;
 
 import com.dynamicpricing.pricing_backend.dtos.PriceComparisonDTO;
+import com.dynamicpricing.pricing_backend.exception.BadRequestException;
+import com.dynamicpricing.pricing_backend.exception.ResourceNotFoundException;
 import com.dynamicpricing.pricing_backend.models.CompetitorPrice;
 import com.dynamicpricing.pricing_backend.models.Product;
 import com.dynamicpricing.pricing_backend.repositories.CompetitorPriceRepository;
 import com.dynamicpricing.pricing_backend.repositories.ProductRepository;
+
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.lang.NonNull;
@@ -28,24 +31,24 @@ public class CompetitorPriceService {
 
         productRepository.findById(competitorPrice.getProductId())
                 .orElseThrow(() ->
-                        new RuntimeException("Product not found"));
+                        new ResourceNotFoundException(
+                                "Product not found with id: "
+                                        + competitorPrice.getProductId()));
+
+        if (competitorPrice.getCompetitorPrice() <= 0) {
+            throw new BadRequestException(
+                    "Competitor price must be greater than zero");
+        }
 
         competitorPrice.setUpdatedAt(LocalDateTime.now());
 
-       CompetitorPrice saved =
-        competitorPriceRepository.save(
-                competitorPrice);
+        CompetitorPrice saved =
+                competitorPriceRepository.save(competitorPrice);
 
-try {
-    pricingEngineService.generateRecommendation(
-            saved.getProductId());
-} catch (Exception e) {
-    System.out.println(
-            "Pricing recommendation failed: "
-                    + e.getMessage());
-}
+        pricingEngineService.generateRecommendation(
+                saved.getProductId());
 
-return saved;
+        return saved;
     }
 
     public List<CompetitorPrice> getAllCompetitorPrices() {
@@ -58,7 +61,13 @@ return saved;
     }
 
     public List<CompetitorPrice> getCompetitorPricesByProductId(
-            String productId) {
+            @NonNull     String productId) {
+
+        productRepository.findById(productId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Product not found with id: "
+                                        + productId));
 
         return competitorPriceRepository.findByProductId(productId);
     }
@@ -74,7 +83,14 @@ return saved;
                     productRepository.findById(
                             updatedCompetitorPrice.getProductId())
                             .orElseThrow(() ->
-                                    new RuntimeException("Product not found"));
+                                    new ResourceNotFoundException(
+                                            "Product not found with id: "
+                                                    + updatedCompetitorPrice.getProductId()));
+
+                    if (updatedCompetitorPrice.getCompetitorPrice() <= 0) {
+                        throw new BadRequestException(
+                                "Competitor price must be greater than zero");
+                    }
 
                     existing.setProductId(
                             updatedCompetitorPrice.getProductId());
@@ -88,74 +104,81 @@ return saved;
                     existing.setUpdatedAt(LocalDateTime.now());
 
                     CompetitorPrice updated =
-                                             competitorPriceRepository.save(existing);
-                                             try {
-                                pricingEngineService.generateRecommendation(
-                                        updated.getProductId());
-                                } catch (Exception e) {
-                                System.out.println(
-                                        "Pricing recommendation failed: "
-                                                + e.getMessage());
-                                }
-                                return updated;
+                            competitorPriceRepository.save(existing);
+
+                    pricingEngineService.generateRecommendation(
+                            updated.getProductId());
+
+                    return updated;
                 })
                 .orElseThrow(() ->
-                        new RuntimeException("Competitor price not found"));
+                        new ResourceNotFoundException(
+                                "Competitor price not found with id: " + id));
     }
 
     public void deleteCompetitorPrice(@NonNull String id) {
 
         competitorPriceRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException("Competitor price not found"));
+                        new ResourceNotFoundException(
+                                "Competitor price not found with id: " + id));
 
         competitorPriceRepository.deleteById(id);
     }
-    public PriceComparisonDTO comparePrice(@NonNull     String productId) {
 
-    Product product = productRepository.findById(productId)
-            .orElseThrow(() ->
-                    new RuntimeException("Product not found"));
+    public PriceComparisonDTO comparePrice(
+            @NonNull String productId) {
 
-    List<CompetitorPrice> competitors =
-            competitorPriceRepository.findByProductId(productId);
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Product not found with id: " + productId));
 
-    if (competitors.isEmpty()) {
-        throw new RuntimeException("No competitor prices found");
+        List<CompetitorPrice> competitors =
+                competitorPriceRepository.findByProductId(productId);
+
+        if (competitors.isEmpty()) {
+            throw new BadRequestException(
+                    "No competitor prices found for product: "
+                            + productId);
+        }
+
+        @SuppressWarnings("null")
+        double avgCompetitorPrice =
+                competitors.stream()
+                        .mapToDouble(
+                                CompetitorPrice::getCompetitorPrice)
+                        .average()
+                        .orElseThrow();
+
+        avgCompetitorPrice =
+                Math.round(avgCompetitorPrice * 100.0) / 100.0;
+
+        double ourPrice = product.getCurrentPrice();
+
+        double difference =
+                Math.round(
+                        Math.abs(
+                                ourPrice - avgCompetitorPrice)
+                                * 100.0)
+                        / 100.0;
+
+        String status;
+
+        if (ourPrice < avgCompetitorPrice) {
+            status = "CHEAPER";
+        } else if (ourPrice > avgCompetitorPrice) {
+            status = "MORE_EXPENSIVE";
+        } else {
+            status = "SAME_PRICE";
+        }
+
+        return new PriceComparisonDTO(
+                product.getProductName(),
+                ourPrice,
+                avgCompetitorPrice,
+                difference,
+                status
+        );
     }
-
-    @SuppressWarnings("null")
-    double avgCompetitorPrice =
-            competitors.stream()
-                    .mapToDouble(CompetitorPrice::getCompetitorPrice)
-                    .average()
-                    .orElseThrow();
-
-    avgCompetitorPrice =
-            Math.round(avgCompetitorPrice * 100.0) / 100.0;
-
-    double ourPrice = product.getCurrentPrice();
-
-    double difference =
-            Math.round(Math.abs(ourPrice - avgCompetitorPrice) * 100.0)
-                    / 100.0;
-
-    String status;
-
-    if (ourPrice < avgCompetitorPrice) {
-        status = "CHEAPER";
-    } else if (ourPrice > avgCompetitorPrice) {
-        status = "MORE_EXPENSIVE";
-    } else {
-        status = "SAME_PRICE";
-    }
-
-    return new PriceComparisonDTO(
-            product.getProductName(),
-            ourPrice,
-            avgCompetitorPrice,
-            difference,
-            status
-    );
-}
 }

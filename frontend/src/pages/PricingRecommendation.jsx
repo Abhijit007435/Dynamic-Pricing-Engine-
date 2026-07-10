@@ -9,33 +9,21 @@ import {
   InputLabel,
   Button,
   Alert,
-  Chip,
   Divider,
   CircularProgress,
 } from '@mui/material';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
-import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
-import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import FormatQuoteOutlinedIcon from '@mui/icons-material/FormatQuoteOutlined';
 import { tokens } from '../theme';
 import PriceTag from '../components/PriceTag';
 import { getProducts, calculatePrice } from '../services/api';
-
-// Icons for the three factor types the backend rule engine considers.
-// Keyed by lowercase factor name so it doesn't break if backend casing varies.
-const FACTOR_ICONS = {
-  demand: <TrendingUpOutlinedIcon fontSize="small" />,
-  inventory: <Inventory2OutlinedIcon fontSize="small" />,
-  competitor: <StorefrontOutlinedIcon fontSize="small" />,
-};
 
 export default function PricingRecommendation() {
   const [products, setProducts] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState('');
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [calculating, setCalculating] = useState(false);
-  const [result, setResult] = useState(null); // { currentPrice, recommendedPrice, factors, explanation }
+  const [result, setResult] = useState(null); // { productId, currentPrice, recommendedPrice, reason }
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -97,7 +85,7 @@ export default function PricingRecommendation() {
             onChange={(e) => setSelectedProductId(e.target.value)}
           >
             {products.map((p) => (
-              <MenuItem key={p._id || p.productId} value={p._id || p.productId}>
+              <MenuItem key={p.id} value={p.id}>
                 {p.productName}
               </MenuItem>
             ))}
@@ -156,44 +144,26 @@ export default function PricingRecommendation() {
 
           <Divider sx={{ my: 3 }} />
 
-          {/* Factors considered */}
+          {/* Backend returns a single "reason" string (not a factors array) —
+              e.g. "High demand and low inventory + Competitor cheaper" */}
           <Typography variant="h6" sx={{ mb: 2 }}>
-            Factors Considered
+            Why This Price
           </Typography>
-          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 3 }}>
-            {(result.factors || []).map((factor, idx) => (
-              <Chip
-                key={idx}
-                icon={FACTOR_ICONS[(factor.name || factor.label || '').toLowerCase()] || undefined}
-                label={`${factor.name || factor.label}: ${factor.value}`}
-                sx={{
-                  bgcolor: tokens.structureSoft,
-                  color: tokens.structure,
-                  fontWeight: 600,
-                  '& .MuiChip-icon': { color: tokens.structure },
-                }}
-              />
-            ))}
+          <Box
+            sx={{
+              bgcolor: tokens.accentSoft,
+              borderLeft: `4px solid ${tokens.accent}`,
+              borderRadius: 1,
+              p: 3,
+              display: 'flex',
+              gap: 1.5,
+            }}
+          >
+            <FormatQuoteOutlinedIcon sx={{ color: tokens.accent }} />
+            <Typography sx={{ fontStyle: 'italic', color: tokens.ink }}>
+              {result.reason || 'No change'}
+            </Typography>
           </Box>
-
-          {/* AI explanation callout */}
-          {result.explanation && (
-            <Box
-              sx={{
-                bgcolor: tokens.accentSoft,
-                borderLeft: `4px solid ${tokens.accent}`,
-                borderRadius: 1,
-                p: 3,
-                display: 'flex',
-                gap: 1.5,
-              }}
-            >
-              <FormatQuoteOutlinedIcon sx={{ color: tokens.accent }} />
-              <Typography sx={{ fontStyle: 'italic', color: tokens.ink }}>
-                {result.explanation}
-              </Typography>
-            </Box>
-          )}
         </Paper>
       )}
 
