@@ -51,4 +51,7 @@ export const getPricingHistory = () => rootApi.get('/pricing-history');
 // ---- Price comparison (single product vs its competitors, backend-computed) ----
 export const getPriceComparison = (productId) => api.get(`/competitor-prices/compare/${productId}`);
 
+// ---- Pricing History by product (used by Pricing Recommendation page) ----
+export const getPricingHistoryByProduct = (productId) => rootApi.get(`/pricing-history/product/${productId}`);
+
 export default api;

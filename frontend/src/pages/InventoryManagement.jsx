@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -28,6 +28,7 @@ import {
   ToggleButton,
   Snackbar,
   Tooltip,
+  Checkbox,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -132,6 +133,25 @@ export default function InventoryManagement() {
   // Undo-delete state
   const [pendingDeletes, setPendingDeletes] = useState({});
 
+  // NEW: bulk-select state
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const tableRef = useRef(null);
+
+  // NEW: clicking anywhere outside the table clears the current selection,
+  // instead of having to uncheck each row one by one.
+  useEffect(() => {
+    if (selectedIds.length === 0) return;
+    const handleClickOutside = (event) => {
+      if (tableRef.current && !tableRef.current.contains(event.target)) {
+        setSelectedIds([]);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [selectedIds.length]);
+
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
   };
@@ -233,11 +253,16 @@ export default function InventoryManagement() {
     }
 
     if (editingItem) {
+      // Backend's PUT /inventory/{id} is ADDITIVE (existing + incoming), not a
+      // set-exact-value endpoint. Since this dialog shows the current quantity
+      // and lets the admin type the new desired total, we must send only the
+      // delta so the backend's addition lands on the intended final value.
+      const delta = qty - editingItem.availableQuantity;
       persistInventory(
         {
           id: editingItem.id,
           productId: editingItem.productId,
-          availableQuantity: qty,
+          availableQuantity: delta,
         },
         'Stock updated successfully.'
       );
@@ -260,11 +285,14 @@ export default function InventoryManagement() {
     if (!duplicateDialog) return;
     setResolving(true);
     const { existing, enteredQuantity } = duplicateDialog;
+    // Backend's PUT /inventory/{id} already does existing + incoming itself.
+    // Sending a pre-summed value here would double-count, so we send the
+    // raw entered quantity only and let the backend do the addition.
     persistInventory(
       {
         id: existing.id,
         productId: existing.productId,
-        availableQuantity: existing.availableQuantity + enteredQuantity,
+        availableQuantity: enteredQuantity,
       },
       `Added ${enteredQuantity} units. New total: ${existing.availableQuantity + enteredQuantity}.`
     );
@@ -274,11 +302,14 @@ export default function InventoryManagement() {
     if (!duplicateDialog) return;
     setResolving(true);
     const { existing, enteredQuantity } = duplicateDialog;
+    // Backend is additive, so to "overwrite" to an exact value we must send
+    // the delta between the desired final value and the current value.
+    const delta = enteredQuantity - existing.availableQuantity;
     persistInventory(
       {
         id: existing.id,
         productId: existing.productId,
-        availableQuantity: enteredQuantity,
+        availableQuantity: delta,
       },
       `Stock overwritten to ${enteredQuantity} units.`
     );
@@ -319,6 +350,34 @@ export default function InventoryManagement() {
     setSnackbar({ open: true, message: 'Delete undone.', severity: 'success' });
   };
 
+  // NEW: bulk-delete handler (no per-item undo — confirmation dialog protects against mistakes instead)
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of selectedIds) {
+      try {
+        await deleteInventory(id);
+        successCount += 1;
+      } catch (err) {
+        failCount += 1;
+      }
+    }
+
+    setBulkDeleting(false);
+    setBulkDeleteConfirmOpen(false);
+    setSelectedIds([]);
+
+    if (failCount === 0) {
+      showSnackbar(`Deleted ${successCount} inventory record(s).`, 'success');
+    } else {
+      showSnackbar(`Deleted ${successCount} record(s), ${failCount} failed. Please retry those.`, 'error');
+    }
+
+    fetchItems();
+  };
+
   const handleSort = (property) => {
     const isAsc = orderBy === property && order === 'asc';
     setOrder(isAsc ? 'desc' : 'asc');
@@ -354,8 +413,27 @@ export default function InventoryManagement() {
 
   const selectedProduct = products.find((p) => p.id === form.productId) || null;
 
+  // NEW: bulk-select helpers
+  const allOnPageSelected =
+    paginatedItems.length > 0 && paginatedItems.every((item) => selectedIds.includes(item.id));
+  const someOnPageSelected = paginatedItems.some((item) => selectedIds.includes(item.id));
+
+  const toggleSelectAllOnPage = () => {
+    if (allOnPageSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !paginatedItems.some((item) => item.id === id)));
+    } else {
+      const newIds = paginatedItems.map((item) => item.id);
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...newIds])));
+    }
+  };
+
+  const toggleSelectRow = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
   return (
     <Box>
+      <Box ref={tableRef}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h4">Inventory</Typography>
@@ -364,6 +442,16 @@ export default function InventoryManagement() {
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1.5 }}>
+          {selectedIds.length > 0 && (
+            <Button
+              variant="contained"
+              startIcon={<DeleteOutlineIcon />}
+              onClick={() => setBulkDeleteConfirmOpen(true)}
+              sx={{ bgcolor: tokens.decrease, '&:hover': { bgcolor: tokens.decrease, opacity: 0.9 } }}
+            >
+              Delete Selected ({selectedIds.length})
+            </Button>
+          )}
           <Button
             variant="outlined"
             startIcon={<DownloadOutlinedIcon />}
@@ -453,6 +541,22 @@ export default function InventoryManagement() {
         <Table>
           <TableHead>
             <TableRow>
+              <TableCell
+                padding="checkbox"
+                sx={{ '&:hover .row-checkbox': { opacity: 1 } }}
+              >
+                <Checkbox
+                  className="row-checkbox"
+                  checked={allOnPageSelected}
+                  indeterminate={!allOnPageSelected && someOnPageSelected}
+                  onChange={toggleSelectAllOnPage}
+                  disabled={paginatedItems.length === 0}
+                  sx={{
+                    opacity: selectedIds.length > 0 || allOnPageSelected ? 1 : 0,
+                    transition: 'opacity 0.15s ease',
+                  }}
+                />
+              </TableCell>
               <TableCell sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>Product ID</TableCell>
               <TableCell sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>
                 <TableSortLabel
@@ -481,7 +585,7 @@ export default function InventoryManagement() {
             {loading &&
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 6 }).map((__, j) => (
+                  {Array.from({ length: 7 }).map((__, j) => (
                     <TableCell key={j}>
                       <Skeleton variant="text" />
                     </TableCell>
@@ -491,7 +595,7 @@ export default function InventoryManagement() {
 
             {!loading && paginatedItems.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 6, color: tokens.inkSoft }}>
+                <TableCell colSpan={7} align="center" sx={{ py: 6, color: tokens.inkSoft }}>
                   {items.length === 0
                     ? 'No inventory data available. Click "Add Stock" to create an entry.'
                     : 'No results match your search/filter.'}
@@ -503,8 +607,25 @@ export default function InventoryManagement() {
               paginatedItems.map((item) => {
                 const status = getStockStatus(item.availableQuantity);
                 const statusStyle = STATUS_STYLES[status];
+                const isSelected = selectedIds.includes(item.id);
                 return (
-                  <TableRow key={item.id} hover>
+                  <TableRow
+                    key={item.id}
+                    hover
+                    selected={isSelected}
+                    sx={{ '&:hover .row-checkbox': { opacity: 1 } }}
+                  >
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        className="row-checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelectRow(item.id)}
+                        sx={{
+                          opacity: isSelected ? 1 : 0,
+                          transition: 'opacity 0.15s ease',
+                        }}
+                      />
+                    </TableCell>
                     <TableCell>
                       <MonoNumber sx={{ color: tokens.inkSoft }}>{item.productId}</MonoNumber>
                     </TableCell>
@@ -564,6 +685,7 @@ export default function InventoryManagement() {
           />
         )}
       </TableContainer>
+      </Box>
 
       {/* Add / Edit dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth maxWidth="xs">
@@ -648,6 +770,30 @@ export default function InventoryManagement() {
           </Button>
           <Button variant="contained" color="secondary" onClick={handleAddToExisting} disabled={resolving}>
             {resolving ? 'Saving...' : 'Add to Existing'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* NEW: bulk-delete confirmation dialog */}
+      <Dialog open={bulkDeleteConfirmOpen} onClose={() => !bulkDeleting && setBulkDeleteConfirmOpen(false)}>
+        <DialogTitle sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>
+          Confirm Bulk Delete
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            You're about to permanently delete <strong>{selectedIds.length}</strong> inventory record(s).
+            This action cannot be undone (unlike single-row delete, there is no undo window for bulk delete).
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setBulkDeleteConfirmOpen(false)} disabled={bulkDeleting}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting}
+            sx={{ bgcolor: tokens.decrease, '&:hover': { bgcolor: tokens.decrease, opacity: 0.9 } }}
+          >
+            {bulkDeleting ? 'Deleting...' : 'Delete Permanently'}
           </Button>
         </DialogActions>
       </Dialog>
