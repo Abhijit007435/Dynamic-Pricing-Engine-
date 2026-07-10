@@ -1,5 +1,6 @@
 package com.dynamicpricing.pricing_backend.controllers;
 
+import com.dynamicpricing.pricing_backend.dtos.PriceComparisonDTO;
 import com.dynamicpricing.pricing_backend.dtos.PricingRecommendationDTO;
 import com.dynamicpricing.pricing_backend.services.PricingEngineService;
 import lombok.RequiredArgsConstructor;
@@ -22,4 +23,12 @@ public class PricingEngineController {
                 pricingEngineService.calculateRecommendation(productId)
         );
     }
+    @GetMapping("/compare/{productId}")
+public ResponseEntity<PriceComparisonDTO> getPriceComparison(
+        @PathVariable @NonNull String productId) {
+
+    return ResponseEntity.ok(
+            pricingEngineService.getPriceComparison(productId)
+    );
+}
 }

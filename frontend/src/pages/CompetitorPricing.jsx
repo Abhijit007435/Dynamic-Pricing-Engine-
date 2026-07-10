@@ -8,6 +8,8 @@ import {
   TableRow,
   TableCell,
   TableContainer,
+  TableSortLabel,
+  TablePagination,
   Button,
   Dialog,
   DialogTitle,
@@ -29,6 +31,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import { tokens } from '../theme';
 import PriceTag from '../components/PriceTag';
 import { getCompetitorPrices, addCompetitorPrice, updateCompetitorPrice, deleteCompetitorPrice, getProducts } from '../services/api';
@@ -39,6 +42,14 @@ export default function CompetitorPricing() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // NEW: sort state
+  const [orderBy, setOrderBy] = useState('productName');
+  const [order, setOrder] = useState('asc');
+
+  // NEW: pagination state
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -57,7 +68,7 @@ export default function CompetitorPricing() {
     setError(null);
     try {
       const [compRes, prodRes] = await Promise.all([getCompetitorPrices(), getProducts()]);
-      
+
       const sanitizedProducts = prodRes.data.map(p => ({
         ...p,
         id: p.id || p._id
@@ -107,7 +118,6 @@ export default function CompetitorPricing() {
 
   const selectedProduct = products.find((p) => p.id === form.productId) || null;
 
-  // SMART FIX: Check matching by name to catch case-insensitive overlaps across different product IDs
   const duplicateRecord = useMemo(() => {
     if (editingItem || !selectedProduct || !form.competitorName.trim()) return null;
     return items.find(
@@ -141,11 +151,9 @@ export default function CompetitorPricing() {
         await updateCompetitorPrice(editingItem.id, payload);
         showSnackbar('Competitor price updated successfully.', 'success');
       } else if (duplicateRecord && !forceAddNew) {
-        // Overwrite the matched duplicate item
         await updateCompetitorPrice(duplicateRecord.id, payload);
         showSnackbar(`Overwritten tracking data for ${payload.competitorName}.`, 'success');
       } else {
-        // Fresh Insert (Either no duplicate OR user forced a new row)
         await addCompetitorPrice(payload);
         showSnackbar('Competitor pricing record added successfully.', 'success');
       }
@@ -211,13 +219,20 @@ export default function CompetitorPricing() {
     const diff = competitorPrice - ourPrice;
     const percent = (diff / ourPrice) * 100;
     const formatted = percent.toFixed(1);
-    
+
     if (percent < 0) {
       return { text: `${Math.abs(percent).toFixed(1)}% Lower`, color: tokens.decrease };
     } else if (percent > 0) {
       return { text: `+${formatted}% Higher`, color: tokens.increase };
     }
     return { text: 'Equal', color: tokens.inkSoft };
+  };
+
+  // NEW: sort handler
+  const handleSortRequest = (property) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
   };
 
   const filteredItems = useMemo(() => {
@@ -231,6 +246,73 @@ export default function CompetitorPricing() {
     });
   }, [items, searchQuery, pendingDeletes]);
 
+  // NEW: sorted list (applied after filtering)
+  const sortedItems = useMemo(() => {
+    const list = [...filteredItems];
+    list.sort((a, b) => {
+      let valA = a[orderBy];
+      let valB = b[orderBy];
+
+      if (typeof valA === 'string') valA = valA.toLowerCase();
+      if (typeof valB === 'string') valB = valB.toLowerCase();
+
+      if (valA == null) return 1;
+      if (valB == null) return -1;
+
+      if (valA < valB) return order === 'asc' ? -1 : 1;
+      if (valA > valB) return order === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return list;
+  }, [filteredItems, orderBy, order]);
+
+  // NEW: paginated slice
+  const paginatedItems = useMemo(() => {
+    const start = page * rowsPerPage;
+    return sortedItems.slice(start, start + rowsPerPage);
+  }, [sortedItems, page, rowsPerPage]);
+
+  const handleChangePage = (event, newPage) => setPage(newPage);
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  // reset to page 0 whenever search/filter changes result size
+  useEffect(() => {
+    setPage(0);
+  }, [searchQuery]);
+
+  // NEW: CSV export (uses filtered+sorted set, not just current page)
+  const handleExportCsv = () => {
+    const headers = ['Product Name', 'Product ID', 'Competitor', 'Our Price', 'Competitor Price', 'Comparison'];
+    const rows = sortedItems.map((item) => {
+      const comparison = getComparison(item.ourPrice, item.competitorPrice);
+      return [
+        item.productName,
+        item.productId,
+        item.competitorName,
+        item.ourPrice ?? '',
+        item.competitorPrice,
+        comparison.label,
+      ];
+    });
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((val) => `"${String(val).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `competitor-pricing-${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mb: 3 }}>
@@ -240,9 +322,14 @@ export default function CompetitorPricing() {
             Track how our prices compare to competitors
           </Typography>
         </Box>
-        <Button variant="contained" color="secondary" startIcon={<AddIcon />} onClick={openAddDialog}>
-          Add Competitor Price
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1.5 }}>
+          <Button variant="outlined" startIcon={<FileDownloadIcon />} onClick={handleExportCsv}>
+            Export CSV
+          </Button>
+          <Button variant="contained" color="secondary" startIcon={<AddIcon />} onClick={openAddDialog}>
+            Add Competitor Price
+          </Button>
+        </Box>
       </Box>
 
       <Box sx={{ mb: 2, maxWidth: '360px' }}>
@@ -272,10 +359,42 @@ export default function CompetitorPricing() {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>Product</TableCell>
-              <TableCell sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>Competitor</TableCell>
-              <TableCell sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>Our Price</TableCell>
-              <TableCell sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>Competitor Price</TableCell>
+              <TableCell sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>
+                <TableSortLabel
+                  active={orderBy === 'productName'}
+                  direction={orderBy === 'productName' ? order : 'asc'}
+                  onClick={() => handleSortRequest('productName')}
+                >
+                  Product
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>
+                <TableSortLabel
+                  active={orderBy === 'competitorName'}
+                  direction={orderBy === 'competitorName' ? order : 'asc'}
+                  onClick={() => handleSortRequest('competitorName')}
+                >
+                  Competitor
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>
+                <TableSortLabel
+                  active={orderBy === 'ourPrice'}
+                  direction={orderBy === 'ourPrice' ? order : 'asc'}
+                  onClick={() => handleSortRequest('ourPrice')}
+                >
+                  Our Price
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>
+                <TableSortLabel
+                  active={orderBy === 'competitorPrice'}
+                  direction={orderBy === 'competitorPrice' ? order : 'asc'}
+                  onClick={() => handleSortRequest('competitorPrice')}
+                >
+                  Competitor Price
+                </TableSortLabel>
+              </TableCell>
               <TableCell sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>Comparison</TableCell>
               <TableCell align="right" sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>Actions</TableCell>
             </TableRow>
@@ -292,7 +411,7 @@ export default function CompetitorPricing() {
                 </TableRow>
               ))}
 
-            {!loading && filteredItems.length === 0 && (
+            {!loading && paginatedItems.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} align="center" sx={{ py: 6, color: tokens.inkSoft }}>
                   No competitor records match your view.
@@ -301,7 +420,7 @@ export default function CompetitorPricing() {
             )}
 
             {!loading &&
-              filteredItems.map((item) => {
+              paginatedItems.map((item) => {
                 const comparison = getComparison(item.ourPrice, item.competitorPrice);
                 const percentDiff = getPriceDiffPercentage(item.ourPrice, item.competitorPrice);
                 return (
@@ -350,15 +469,24 @@ export default function CompetitorPricing() {
               })}
           </TableBody>
         </Table>
+
+        <TablePagination
+          rowsPerPageOptions={[5, 10, 25, 50]}
+          component="div"
+          count={sortedItems.length}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={handleChangePage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+        />
       </TableContainer>
 
-      {/* Main Form Dialog Layout with Multi-Option Choice Buttons */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>
           {editingItem ? 'Edit Competitor Data' : 'Add Competitor Pricing'}
         </DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: 2 }}>
-          
+
           <Autocomplete
             disabled={!!editingItem}
             options={products}
@@ -370,7 +498,7 @@ export default function CompetitorPricing() {
             autoHighlight
             filterOptions={(options, state) => {
               const search = state.inputValue.toLowerCase();
-              return options.filter(option => 
+              return options.filter(option =>
                 (option.productName || '').toLowerCase().includes(search)
               );
             }}
@@ -400,7 +528,7 @@ export default function CompetitorPricing() {
             <Alert severity="warning" sx={{ mt: 1, '& .MuiAlert-message': { width: '100%' } }}>
               <Typography variant="body2" sx={{ fontWeight: 600 }}>Price Tracking Conflict</Typography>
               <Typography variant="caption" component="p" sx={{ mt: 0.5, lineHeight: 1.4 }}>
-                A record for <strong>{duplicateRecord.competitorName}</strong> under product name "{duplicateRecord.productName}" already exists (Price: <strong>₹{duplicateRecord.competitorPrice}</strong>). 
+                A record for <strong>{duplicateRecord.competitorName}</strong> under product name "{duplicateRecord.productName}" already exists (Price: <strong>₹{duplicateRecord.competitorPrice}</strong>).
                 <br />Choose whether to overwrite it or log it as a separate model.
               </Typography>
             </Alert>
@@ -411,19 +539,19 @@ export default function CompetitorPricing() {
           <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
           <Box sx={{ display: 'flex', gap: 1 }}>
             {duplicateRecord && (
-              <Button 
-                variant="outlined" 
-                color="secondary" 
-                onClick={() => handleSave(true)} 
+              <Button
+                variant="outlined"
+                color="secondary"
+                onClick={() => handleSave(true)}
                 disabled={saving}
               >
                 Add as New
               </Button>
             )}
-            <Button 
-              variant="contained" 
-              color={duplicateRecord ? "error" : "secondary"} 
-              onClick={() => handleSave(false)} 
+            <Button
+              variant="contained"
+              color={duplicateRecord ? "error" : "secondary"}
+              onClick={() => handleSave(false)}
               disabled={saving}
             >
               {saving ? 'Saving...' : duplicateRecord ? 'Overwrite' : 'Save'}

@@ -46,7 +46,7 @@ public class CompetitorPriceController {
     @GetMapping("/product/{productId}")
     public ResponseEntity<List<CompetitorPrice>>
     getCompetitorPricesByProductId(
-            @PathVariable String productId) {
+            @PathVariable @NonNull String productId) {
 
         return ResponseEntity.ok(
                 competitorPriceService
