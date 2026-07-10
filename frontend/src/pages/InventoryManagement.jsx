@@ -233,11 +233,16 @@ export default function InventoryManagement() {
     }
 
     if (editingItem) {
+      // Backend's PUT /inventory/{id} is ADDITIVE (existing + incoming), not a
+      // set-exact-value endpoint. Since this dialog shows the current quantity
+      // and lets the admin type the new desired total, we must send only the
+      // delta so the backend's addition lands on the intended final value.
+      const delta = qty - editingItem.availableQuantity;
       persistInventory(
         {
           id: editingItem.id,
           productId: editingItem.productId,
-          availableQuantity: qty,
+          availableQuantity: delta,
         },
         'Stock updated successfully.'
       );
@@ -260,11 +265,14 @@ export default function InventoryManagement() {
     if (!duplicateDialog) return;
     setResolving(true);
     const { existing, enteredQuantity } = duplicateDialog;
+    // Backend's PUT /inventory/{id} already does existing + incoming itself.
+    // Sending a pre-summed value here would double-count, so we send the
+    // raw entered quantity only and let the backend do the addition.
     persistInventory(
       {
         id: existing.id,
         productId: existing.productId,
-        availableQuantity: existing.availableQuantity + enteredQuantity,
+        availableQuantity: enteredQuantity,
       },
       `Added ${enteredQuantity} units. New total: ${existing.availableQuantity + enteredQuantity}.`
     );
@@ -274,11 +282,14 @@ export default function InventoryManagement() {
     if (!duplicateDialog) return;
     setResolving(true);
     const { existing, enteredQuantity } = duplicateDialog;
+    // Backend is additive, so to "overwrite" to an exact value we must send
+    // the delta between the desired final value and the current value.
+    const delta = enteredQuantity - existing.availableQuantity;
     persistInventory(
       {
         id: existing.id,
         productId: existing.productId,
-        availableQuantity: enteredQuantity,
+        availableQuantity: delta,
       },
       `Stock overwritten to ${enteredQuantity} units.`
     );
