@@ -1,29 +1,51 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody,
-  Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton, Chip
+  Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton, Chip, CircularProgress
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import PriceTag from '../components/PriceTag';
 import { tokens } from '../theme';
-// import { getProducts, addProduct, updateProduct, deleteProduct } from '../services/api';
+import { getProducts, addProduct, updateProduct, deleteProduct } from '../services/api';
 
-// MOCK DATA — swap for real API calls once backend /products endpoint is ready.
+// Fallback mock data — shown ONLY if the real backend call fails.
 const MOCK_PRODUCTS = [
-  { id: 1, productName: 'Wireless Mouse', category: 'Electronics', currentPrice: 799 },
-  { id: 2, productName: 'Mechanical Keyboard', category: 'Electronics', currentPrice: 2499 },
-  { id: 3, productName: 'USB-C Hub', category: 'Accessories', currentPrice: 1199 },
+  { id: 'mock-1', productName: 'Wireless Mouse', category: 'Electronics', currentPrice: 799 },
+  { id: 'mock-2', productName: 'Mechanical Keyboard', category: 'Electronics', currentPrice: 2499 },
+  { id: 'mock-3', productName: 'USB-C Hub', category: 'Accessories', currentPrice: 1199 },
 ];
 
 const emptyForm = { productName: '', category: '', currentPrice: '' };
 
 export default function ProductManagement() {
-  const [products, setProducts] = useState(MOCK_PRODUCTS);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [usingMockData, setUsingMockData] = useState(false);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
+
+  const loadProducts = () => {
+    setLoading(true);
+    getProducts()
+      .then((res) => {
+        // Backend field is "id" per the sample response we saw earlier
+        // (id, productName, category, currentPrice, demandLevel, createdAt)
+        setProducts(res.data);
+        setUsingMockData(false);
+      })
+      .catch(() => {
+        setProducts(MOCK_PRODUCTS);
+        setUsingMockData(true);
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadProducts();
+  }, []);
 
   const openAddDialog = () => {
     setEditingId(null);
@@ -38,19 +60,39 @@ export default function ProductManagement() {
   };
 
   const handleSave = () => {
+    const payload = { ...form, currentPrice: Number(form.currentPrice) };
+
+    if (usingMockData) {
+      // No real backend reachable — just update local state so the UI still works
+      if (editingId) {
+        setProducts((prev) => prev.map((p) => (p.id === editingId ? { ...p, ...payload } : p)));
+      } else {
+        setProducts((prev) => [...prev, { id: `mock-${Date.now()}`, ...payload }]);
+      }
+      setOpen(false);
+      return;
+    }
+
     if (editingId) {
-      // updateProduct(editingId, form).then(...)  ← wire this up once backend is ready
-      setProducts((prev) => prev.map((p) => (p.id === editingId ? { ...p, ...form } : p)));
+      updateProduct(editingId, payload)
+        .then(() => loadProducts())
+        .catch((err) => console.error('Failed to update product:', err));
     } else {
-      // addProduct(form).then(...)
-      setProducts((prev) => [...prev, { id: Date.now(), ...form }]);
+      addProduct(payload)
+        .then(() => loadProducts())
+        .catch((err) => console.error('Failed to add product:', err));
     }
     setOpen(false);
   };
 
   const handleDelete = (id) => {
-    // deleteProduct(id).then(...)
-    setProducts((prev) => prev.filter((p) => p.id !== id));
+    if (usingMockData) {
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+      return;
+    }
+    deleteProduct(id)
+      .then(() => loadProducts())
+      .catch((err) => console.error('Failed to delete product:', err));
   };
 
   return (
@@ -68,37 +110,51 @@ export default function ProductManagement() {
         </Button>
       </Box>
 
-      <Paper>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ fontWeight: 600, color: tokens.inkSoft }}>Product Name</TableCell>
-              <TableCell sx={{ fontWeight: 600, color: tokens.inkSoft }}>Category</TableCell>
-              <TableCell sx={{ fontWeight: 600, color: tokens.inkSoft }}>Current Price</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 600, color: tokens.inkSoft }}>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {products.map((product) => (
-              <TableRow key={product.id} hover>
-                <TableCell sx={{ fontWeight: 500 }}>{product.productName}</TableCell>
-                <TableCell>
-                  <Chip size="small" label={product.category} sx={{ backgroundColor: tokens.structureSoft, color: tokens.structure, fontWeight: 500 }} />
-                </TableCell>
-                <TableCell><PriceTag value={product.currentPrice} /></TableCell>
-                <TableCell align="right">
-                  <IconButton size="small" onClick={() => openEditDialog(product)}>
-                    <EditOutlinedIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton size="small" onClick={() => handleDelete(product.id)}>
-                    <DeleteOutlineIcon fontSize="small" sx={{ color: tokens.decrease }} />
-                  </IconButton>
-                </TableCell>
+      {usingMockData && (
+        <Paper sx={{ p: 1.5, mb: 3, backgroundColor: tokens.decreaseSoft, borderColor: tokens.decrease }}>
+          <Typography variant="caption" sx={{ color: tokens.decrease }}>
+            Showing sample data — could not reach the backend server. Changes here won't be saved.
+          </Typography>
+        </Paper>
+      )}
+
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+          <CircularProgress sx={{ color: tokens.accent }} />
+        </Box>
+      ) : (
+        <Paper>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600, color: tokens.inkSoft }}>Product Name</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: tokens.inkSoft }}>Category</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: tokens.inkSoft }}>Current Price</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 600, color: tokens.inkSoft }}>Actions</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Paper>
+            </TableHead>
+            <TableBody>
+              {products.map((product) => (
+                <TableRow key={product.id} hover>
+                  <TableCell sx={{ fontWeight: 500 }}>{product.productName}</TableCell>
+                  <TableCell>
+                    <Chip size="small" label={product.category} sx={{ backgroundColor: tokens.structureSoft, color: tokens.structure, fontWeight: 500 }} />
+                  </TableCell>
+                  <TableCell><PriceTag value={product.currentPrice} /></TableCell>
+                  <TableCell align="right">
+                    <IconButton size="small" onClick={() => openEditDialog(product)}>
+                      <EditOutlinedIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton size="small" onClick={() => handleDelete(product.id)}>
+                      <DeleteOutlineIcon fontSize="small" sx={{ color: tokens.decrease }} />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Paper>
+      )}
 
       <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>
