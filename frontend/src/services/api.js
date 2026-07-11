@@ -16,7 +16,7 @@ const api = axios.create({
   // Spring Security Basic Auth Credentials
   auth: {
     username: 'user', // Default username
-    password: '4724092a-1b2f-4cc1-ac22-1e500f07c04b' // Replace with the password from your Spring Boot console
+    password: '75a3b21a-3695-47b8-bb68-cc6bb8154dc4' // Replace with the password from your Spring Boot console
   }
 });
 
@@ -25,7 +25,7 @@ const rootApi = axios.create({
   headers: { 'Content-Type': 'application/json' },
   auth: {
     username: 'user',
-    password: '4724092a-1b2f-4cc1-ac22-1e500f07c04b'
+    password: '75a3b21a-3695-47b8-bb68-cc6bb8154dc4'
   }
 });
 
