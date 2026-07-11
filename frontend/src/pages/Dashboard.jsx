@@ -10,9 +10,7 @@ import FadeIn from '../components/FadeIn';
 import { tokens } from '../theme';
 import { getDashboardAnalytics, getDashboardRecommendations } from '../services/api';
 
-// Fallback mock data — shown ONLY if the real backend call fails
-// (e.g. backend not running locally). Keeps the UI looking complete
-// during demos/testing instead of showing a blank error.
+// Fallback mock data — shown ONLY if the real backend call fails.
 const MOCK_STATS = {
   totalProducts: 42,
   lowStockCount: 5,
@@ -21,11 +19,21 @@ const MOCK_STATS = {
 };
 
 const MOCK_RECENT_CHANGES = [
-  { product: 'Wireless Mouse', oldPrice: 799, newPrice: 879, direction: 'up' },
-  { product: 'Mechanical Keyboard', oldPrice: 2499, newPrice: 2299, direction: 'down' },
-  { product: 'USB-C Hub', oldPrice: 1199, newPrice: 1250, direction: 'up' },
-  { product: 'Webcam 1080p', oldPrice: 1899, newPrice: 1799, direction: 'down' },
+  { product: 'Wireless Mouse', oldPrice: 799, newPrice: 879, direction: 'up', stockStatus: 'LOW' },
+  { product: 'Mechanical Keyboard', oldPrice: 2499, newPrice: 2299, direction: 'down', stockStatus: 'HIGH' },
+  { product: 'USB-C Hub', oldPrice: 1199, newPrice: 1250, direction: 'up', stockStatus: 'NORMAL' },
+  { product: 'Webcam 1080p', oldPrice: 1899, newPrice: 1799, direction: 'down', stockStatus: 'NORMAL' },
 ];
+
+// Maps backend's stockStatus value to a color, so LOW/HIGH/NORMAL are
+// visually distinct at a glance (matches the same color language as
+// the rest of the app: decrease=rust, increase=green, neutral=structure).
+const stockStatusStyle = (status) => {
+  const normalized = (status || '').toUpperCase();
+  if (normalized === 'LOW') return { bg: tokens.decreaseSoft, color: tokens.decrease };
+  if (normalized === 'HIGH') return { bg: tokens.increaseSoft, color: tokens.increase };
+  return { bg: tokens.structureSoft, color: tokens.structure };
+};
 
 export default function Dashboard() {
   const [stats, setStats] = useState(MOCK_STATS);
@@ -36,12 +44,9 @@ export default function Dashboard() {
   useEffect(() => {
     let isMounted = true;
 
-    // Fetch dashboard stats
     getDashboardAnalytics()
       .then((res) => {
         if (!isMounted) return;
-        // NOTE: adjust these field names once backend confirms exact
-        // response shape for /api/analytics/dashboard
         const data = res.data;
         setStats({
           totalProducts: data.totalProducts ?? data.total_products ?? 0,
@@ -57,18 +62,18 @@ export default function Dashboard() {
         }
       });
 
-    // Fetch recent recommendations
     getDashboardRecommendations()
       .then((res) => {
         if (!isMounted) return;
-        // NOTE: adjust these field names once backend confirms exact
-        // response shape for /api/analytics/dashboard-recommendations
+        // Real backend shape (DashboardRecommendationDTO):
+        // productName, oldPrice, recommendedPrice, stockStatus
         const list = Array.isArray(res.data) ? res.data : [];
         const mapped = list.slice(0, 5).map((item) => ({
-          product: item.productName ?? item.product ?? 'Unknown',
+          product: item.productName ?? 'Unknown',
           oldPrice: item.oldPrice ?? 0,
-          newPrice: item.recommendedPrice ?? item.newPrice ?? 0,
-          direction: (item.recommendedPrice ?? item.newPrice ?? 0) >= (item.oldPrice ?? 0) ? 'up' : 'down',
+          newPrice: item.recommendedPrice ?? 0,
+          direction: (item.recommendedPrice ?? 0) >= (item.oldPrice ?? 0) ? 'up' : 'down',
+          stockStatus: item.stockStatus ?? 'NORMAL',
         }));
         if (mapped.length > 0) setRecentChanges(mapped);
       })
@@ -125,37 +130,64 @@ export default function Dashboard() {
               </Stack>
 
               <Stack spacing={0}>
-                {recentChanges.map((change, idx) => (
-                  <Box
-                    key={idx}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      py: 1.5,
-                      borderBottom: idx < recentChanges.length - 1 ? `1px solid ${tokens.structureSoft}` : 'none',
-                      transition: 'background-color 150ms ease',
-                      '&:hover': { backgroundColor: tokens.background },
-                    }}
-                  >
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>{change.product}</Typography>
-                    <Stack direction="row" alignItems="center" spacing={1.5}>
-                      <PriceTag value={change.oldPrice} size="small" />
-                      <Typography sx={{ color: tokens.inkSoft }}>→</Typography>
-                      <PriceTag value={change.newPrice} size="small" variant={change.direction === 'up' ? 'increase' : 'decrease'} />
-                      <Chip
-                        size="small"
-                        label={change.direction === 'up' ? 'Increased' : 'Decreased'}
-                        sx={{
-                          backgroundColor: change.direction === 'up' ? tokens.increaseSoft : tokens.decreaseSoft,
-                          color: change.direction === 'up' ? tokens.increase : tokens.decrease,
-                          fontWeight: 600,
-                          fontSize: '0.7rem',
-                        }}
-                      />
-                    </Stack>
-                  </Box>
-                ))}
+                {recentChanges.map((change, idx) => {
+                  const stockStyle = stockStatusStyle(change.stockStatus);
+                  return (
+                    <Box
+                      key={idx}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        py: 1.5,
+                        flexWrap: 'wrap',
+                        gap: 1,
+                        borderBottom: idx < recentChanges.length - 1 ? `1px solid ${tokens.structureSoft}` : 'none',
+                        transition: 'background-color 150ms ease',
+                        '&:hover': { backgroundColor: tokens.background },
+                      }}
+                    >
+                      <Box>
+                        <Typography variant="body1" sx={{ fontWeight: 500 }}>{change.product}</Typography>
+                        <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mt: 0.3 }}>
+                          <Typography variant="caption" sx={{ color: tokens.inkSoft }}>Stock:</Typography>
+                          <Chip
+                            size="small"
+                            label={change.stockStatus}
+                            sx={{
+                              backgroundColor: stockStyle.bg,
+                              color: stockStyle.color,
+                              fontWeight: 600,
+                              fontSize: '0.65rem',
+                              height: 20,
+                            }}
+                          />
+                        </Stack>
+                      </Box>
+                      <Stack direction="row" alignItems="center" spacing={1.5}>
+                        <Box sx={{ textAlign: 'right' }}>
+                          <Typography variant="caption" sx={{ color: tokens.inkSoft, display: 'block' }}>Old Price</Typography>
+                          <PriceTag value={change.oldPrice} size="small" />
+                        </Box>
+                        <Typography sx={{ color: tokens.inkSoft }}>→</Typography>
+                        <Box sx={{ textAlign: 'right' }}>
+                          <Typography variant="caption" sx={{ color: tokens.inkSoft, display: 'block' }}>Recommended</Typography>
+                          <PriceTag value={change.newPrice} size="small" variant={change.direction === 'up' ? 'increase' : 'decrease'} />
+                        </Box>
+                        <Chip
+                          size="small"
+                          label={change.direction === 'up' ? 'Increased' : 'Decreased'}
+                          sx={{
+                            backgroundColor: change.direction === 'up' ? tokens.increaseSoft : tokens.decreaseSoft,
+                            color: change.direction === 'up' ? tokens.increase : tokens.decrease,
+                            fontWeight: 600,
+                            fontSize: '0.7rem',
+                          }}
+                        />
+                      </Stack>
+                    </Box>
+                  );
+                })}
               </Stack>
             </Paper>
           </FadeIn>
