@@ -43,16 +43,22 @@ import { tokens } from '../theme';
 import StatCard from '../components/StatCard';
 import { getInventory, addInventory, updateInventory, deleteInventory, getProducts } from '../services/api';
 
-const LOW_STOCK_THRESHOLD = 10;
+// Aligned with backend's InventoryService.getInventoryStatus() thresholds
+// exactly: <=0 OUT_OF_STOCK, <20 LOW, <=100 MEDIUM (shown as "Normal"), >100 HIGH.
+// Previously this used different local numbers (<=10 / >=100) which didn't
+// match the backend's business logic — now synced.
+const LOW_STOCK_THRESHOLD = 20;
 const HIGH_STOCK_THRESHOLD = 100;
 
 const getStockStatus = (quantity) => {
-  if (quantity <= LOW_STOCK_THRESHOLD) return 'low';
-  if (quantity >= HIGH_STOCK_THRESHOLD) return 'high';
-  return 'normal';
+  if (quantity <= 0) return 'out';
+  if (quantity < LOW_STOCK_THRESHOLD) return 'low';
+  if (quantity <= HIGH_STOCK_THRESHOLD) return 'normal';
+  return 'high';
 };
 
 const STATUS_STYLES = {
+  out: { label: 'Out of Stock', bg: tokens.decreaseSoft, color: tokens.decrease },
   low: { label: 'Low Stock', bg: tokens.decreaseSoft, color: tokens.decrease },
   normal: { label: 'Normal', bg: tokens.structureSoft, color: tokens.inkSoft },
   high: { label: 'High Stock', bg: tokens.increaseSoft, color: tokens.increase },
@@ -476,8 +482,8 @@ export default function InventoryManagement() {
         <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
           <StatCard label="Total Products" value={items.length} icon={<Inventory2OutlinedIcon />} />
           <StatCard
-            label="Low Stock Items"
-            value={items.filter((i) => getStockStatus(i.availableQuantity) === 'low').length}
+            label="Low / Out of Stock Items"
+            value={items.filter((i) => ['low', 'out'].includes(getStockStatus(i.availableQuantity))).length}
             icon={<WarningAmberOutlinedIcon />}
             accent
           />
@@ -515,6 +521,12 @@ export default function InventoryManagement() {
         >
           <ToggleButton value="all" sx={{ textTransform: 'none', px: 2 }}>
             All
+          </ToggleButton>
+          <ToggleButton
+            value="out"
+            sx={{ textTransform: 'none', px: 2, '&.Mui-selected': { bgcolor: tokens.decreaseSoft, color: tokens.decrease } }}
+          >
+            Out of Stock
           </ToggleButton>
           <ToggleButton
             value="low"

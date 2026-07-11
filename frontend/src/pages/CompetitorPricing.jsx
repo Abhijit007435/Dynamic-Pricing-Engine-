@@ -34,9 +34,10 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import { tokens } from '../theme';
 import PriceTag from '../components/PriceTag';
-import { getCompetitorPrices, addCompetitorPrice, updateCompetitorPrice, deleteCompetitorPrice, getProducts } from '../services/api';
+import { getCompetitorPrices, addCompetitorPrice, updateCompetitorPrice, deleteCompetitorPrice, getProducts, getPriceComparison } from '../services/api';
 
 export default function CompetitorPricing() {
   const [items, setItems] = useState([]);
@@ -64,6 +65,14 @@ export default function CompetitorPricing() {
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const tableRef = useRef(null);
+
+  // NEW: product-level "Compare Prices" feature (per functional requirements —
+  // this is product-level, not row-level, since the backend returns an average
+  // across all competitors for a product, not a single-competitor comparison)
+  const [compareProduct, setCompareProduct] = useState(null);
+  const [compareResult, setCompareResult] = useState(null);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareError, setCompareError] = useState(null);
 
   // NEW: clicking anywhere outside the table (and its action bar) clears the
   // current selection, instead of having to uncheck each row one by one.
@@ -248,6 +257,28 @@ export default function CompetitorPricing() {
     fetchItems();
   };
 
+  // NEW: product-level compare — calls backend's compare endpoint which
+  // returns an average across all competitor entries for that product.
+  // Backend throws a 400 if the product has no competitor prices recorded yet.
+  const handleCompare = async () => {
+    if (!compareProduct) return;
+    setCompareLoading(true);
+    setCompareError(null);
+    setCompareResult(null);
+    try {
+      const response = await getPriceComparison(compareProduct.id);
+      setCompareResult(response.data);
+    } catch (err) {
+      if (err?.response?.status === 400) {
+        setCompareError('This product has no competitor prices recorded yet. Add one above to enable comparison.');
+      } else {
+        setCompareError('Could not fetch comparison for this product. Please try again.');
+      }
+    } finally {
+      setCompareLoading(false);
+    }
+  };
+
   const getComparison = (ourPrice, competitorPrice) => {
     if (ourPrice == null) {
       return { label: 'No product price', color: tokens.inkSoft, bg: tokens.structureSoft, icon: null };
@@ -402,6 +433,117 @@ export default function CompetitorPricing() {
           </Button>
         </Box>
       </Box>
+
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <CompareArrowsIcon sx={{ color: tokens.inkSoft }} />
+          <Typography variant="h6">Compare Prices</Typography>
+        </Box>
+        <Typography variant="body2" sx={{ color: tokens.inkSoft, mb: 2 }}>
+          See how a product's price stacks up against the average of all its tracked competitor prices.
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Autocomplete
+            sx={{ minWidth: 280 }}
+            options={products}
+            getOptionLabel={(option) => option.productName || ''}
+            value={compareProduct}
+            onChange={(event, newValue) => {
+              setCompareProduct(newValue);
+              setCompareResult(null);
+              setCompareError(null);
+            }}
+            autoHighlight
+            filterOptions={(options, state) => {
+              const search = state.inputValue.toLowerCase();
+              return options.filter((option) => (option.productName || '').toLowerCase().includes(search));
+            }}
+            renderInput={(params) => (
+              <TextField {...params} label="Select product to compare" placeholder="Type product name..." />
+            )}
+            noOptionsText="No matching products found"
+          />
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={handleCompare}
+            disabled={!compareProduct || compareLoading}
+          >
+            {compareLoading ? 'Comparing...' : 'Compare'}
+          </Button>
+        </Box>
+
+        {compareError && (
+          <Alert severity="warning" sx={{ mt: 2 }} onClose={() => setCompareError(null)}>
+            {compareError}
+          </Alert>
+        )}
+
+        {compareResult && !compareLoading && (() => {
+          // Exact fields confirmed from backend's PriceComparisonDTO.java:
+          // productName, ourPrice, competitorPrice, difference, status
+          // NOTE: "competitorPrice" here holds the AVERAGE value — the DTO is
+          // shared with PricingEngineService's single-latest-price endpoint,
+          // which is why the field isn't named "avgCompetitorPrice".
+          const { ourPrice, competitorPrice: avgCompetitorPrice, difference, status } = compareResult;
+
+          const statusMap = {
+            CHEAPER: { label: 'We are cheaper', color: tokens.increase, bg: tokens.increaseSoft, icon: <ArrowDownwardIcon fontSize="small" /> },
+            MORE_EXPENSIVE: { label: 'We are costlier', color: tokens.decrease, bg: tokens.decreaseSoft, icon: <ArrowUpwardIcon fontSize="small" /> },
+            SAME_PRICE: { label: 'Same price', color: tokens.inkSoft, bg: tokens.structureSoft, icon: null },
+          };
+          const comparison = statusMap[status] || statusMap.SAME_PRICE;
+
+          const percentDiff =
+            ourPrice > 0 ? `${((difference / ourPrice) * 100).toFixed(1)}%` : null;
+
+          return (
+            <Box
+              sx={{
+                mt: 3,
+                p: 2.5,
+                borderRadius: 1,
+                bgcolor: tokens.structureSoft,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                flexWrap: 'wrap',
+              }}
+            >
+              <Box>
+                <Typography variant="body2" sx={{ color: tokens.inkSoft, mb: 0.5 }}>
+                  Our Price
+                </Typography>
+                <PriceTag value={ourPrice} size="large" />
+              </Box>
+              <Box>
+                <Typography variant="body2" sx={{ color: tokens.inkSoft, mb: 0.5 }}>
+                  Average Competitor Price
+                </Typography>
+                <PriceTag value={avgCompetitorPrice} size="large" />
+              </Box>
+              <Box>
+                <Typography variant="body2" sx={{ color: tokens.inkSoft, mb: 0.5 }}>
+                  Difference
+                </Typography>
+                <Box sx={{ fontFamily: '"JetBrains Mono", monospace', fontWeight: 600, color: comparison.color }}>
+                  ₹{difference}{percentDiff ? ` (${percentDiff})` : ''}
+                </Box>
+              </Box>
+              <Chip
+                icon={comparison.icon || undefined}
+                label={comparison.label}
+                sx={{
+                  bgcolor: comparison.bg,
+                  color: comparison.color,
+                  fontWeight: 600,
+                  '& .MuiChip-icon': { color: comparison.color },
+                }}
+              />
+            </Box>
+          );
+        })()}
+      </Paper>
 
       <Box sx={{ mb: 2, maxWidth: '360px' }}>
         <TextField
