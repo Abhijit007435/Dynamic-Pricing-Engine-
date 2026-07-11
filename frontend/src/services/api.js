@@ -14,9 +14,12 @@ const api = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
   // Spring Security Basic Auth Credentials
+  // NOTE: this password is Spring's auto-generated one and changes every
+  // backend restart — ask backend team to set a FIXED username/password
+  // in SecurityConfig.java so this stops breaking.
   auth: {
-    username: 'user', // Default username
-    password: '75a3b21a-3695-47b8-bb68-cc6bb8154dc4' // Replace with the password from your Spring Boot console
+    username: 'user',
+    password: '75a3b21a-3695-47b8-bb68-cc6bb8154dc4'
   }
 });
 
@@ -52,6 +55,8 @@ export const deleteCompetitorPrice = (id) => api.delete(`/competitor-prices/${id
 export const calculatePrice = (productId) => rootApi.post(`/pricing-engine/calculate/${productId}`);
 // Real endpoint: GET /pricing-history — no /api prefix.
 export const getPricingHistory = () => rootApi.get('/pricing-history');
+// Pricing History filtered by a specific product (used by Pricing Recommendation page)
+export const getPricingHistoryByProduct = (productId) => rootApi.get(`/pricing-history/product/${productId}`);
 
 // ---- Price comparison (single product vs its competitors, backend-computed) ----
 export const getPriceComparison = (productId) => api.get(`/competitor-prices/compare/${productId}`);
