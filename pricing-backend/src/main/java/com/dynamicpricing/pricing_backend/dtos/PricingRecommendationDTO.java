@@ -11,4 +11,5 @@ public class PricingRecommendationDTO {
     private double currentPrice;
     private double recommendedPrice;
     private String reason;
+    private String aiExplanation;
 }

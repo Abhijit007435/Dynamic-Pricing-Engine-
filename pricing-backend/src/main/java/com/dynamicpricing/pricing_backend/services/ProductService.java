@@ -1,6 +1,7 @@
 package com.dynamicpricing.pricing_backend.services;
 
 import com.dynamicpricing.pricing_backend.exception.ResourceNotFoundException;
+
 import com.dynamicpricing.pricing_backend.models.Product;
 import com.dynamicpricing.pricing_backend.repositories.CompetitorPriceRepository;
 import com.dynamicpricing.pricing_backend.repositories.InventoryRepository;
@@ -23,14 +24,17 @@ public class ProductService {
     private final InventoryRepository inventoryRepository;
     private final CompetitorPriceRepository competitorPriceRepository;
     private final PricingHistoryRepository pricingHistoryRepository;
-    private final PricingEngineService pricingEngineService;
+
 
     public Product createProduct(@NonNull Product product) {
 
-        product.setCreatedAt(LocalDateTime.now());
+    product.setCreatedAt(LocalDateTime.now());
 
-        return productRepository.save(product);
-    }
+    product.setBasePrice(
+            product.getCurrentPrice());
+
+    return productRepository.save(product);
+}
 
     public List<Product> getAllProducts() {
 
@@ -55,6 +59,7 @@ public class ProductService {
                         .orElseThrow(() ->
                                 new ResourceNotFoundException(
                                         "Product not found with id: " + id));
+  
 
         existingProduct.setProductName(
                 updatedProduct.getProductName());
@@ -67,14 +72,8 @@ public class ProductService {
 
         existingProduct.setDemandLevel(
                 updatedProduct.getDemandLevel());
-
-        Product savedProduct =
-                productRepository.save(existingProduct);
-
-        pricingEngineService.generateRecommendation(
-                savedProduct.getId());
-
-        return savedProduct;
+              
+       return productRepository.save(existingProduct);
     }
 
     @SuppressWarnings("null")

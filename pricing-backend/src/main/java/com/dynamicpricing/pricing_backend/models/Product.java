@@ -22,6 +22,7 @@ public class Product {
     private String category;
 
     private Double currentPrice;
+    private double basePrice;
 
     private DemandLevel demandLevel;
 

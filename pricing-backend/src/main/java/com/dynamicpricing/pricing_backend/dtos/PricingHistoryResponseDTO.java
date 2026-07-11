@@ -15,5 +15,6 @@ public class PricingHistoryResponseDTO {
     private double oldPrice;
     private double recommendedPrice;
     private String reason;
+    private String aiExplanation;
     private LocalDateTime createdAt;
 }

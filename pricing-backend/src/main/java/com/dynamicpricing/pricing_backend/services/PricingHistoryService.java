@@ -52,14 +52,15 @@ convertToDTO(PricingHistory history) {
             .map(Product::getProductName)
             .orElse("Unknown Product");
 
-    return new PricingHistoryResponseDTO(
-            history.getId(),
-            history.getProductId(),
-            productName,
-            history.getOldPrice(),
-            history.getRecommendedPrice(),
-            history.getReason(),
-            history.getCreatedAt()
-    );
+   return new PricingHistoryResponseDTO(
+        history.getId(),
+        history.getProductId(),
+        productName,
+        history.getOldPrice(),
+        history.getRecommendedPrice(),
+        history.getReason(),
+        history.getAiExplanation(),
+        history.getCreatedAt()
+);
 }
 }
