@@ -30,6 +30,7 @@ public class PricingHistory {
     private String reason;
 
     private LocalDateTime createdAt = LocalDateTime.now();
+    private String aiExplanation;
 
    
 
