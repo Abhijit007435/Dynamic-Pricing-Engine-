@@ -490,8 +490,8 @@ export default function PricingRecommendation() {
               >
                 <FormatQuoteOutlinedIcon sx={{ color: tokens.accent }} />
                 <Typography sx={{ fontStyle: 'italic', color: tokens.ink }}>
-  {result.aiExplanation || result.reason || 'No change'}
-</Typography>
+                  {result.reason || 'No change'}
+                </Typography>
               </Box>
 
               {!priceUnchanged && (
@@ -560,9 +560,7 @@ export default function PricingRecommendation() {
                             </TableCell>
                             <TableCell><PriceTag value={h.oldPrice} size="small" /></TableCell>
                             <TableCell><PriceTag value={h.recommendedPrice} size="small" variant="accent" /></TableCell>
-                            <TableCell sx={{ color: tokens.inkSoft }}>
-  {h.aiExplanation || h.reason}
-</TableCell>
+                            <TableCell sx={{ color: tokens.inkSoft }}>{h.reason}</TableCell>
                           </TableRow>
                         ))}
                     </TableBody>
@@ -743,14 +741,9 @@ export default function PricingRecommendation() {
                             variant={row.recommendedPrice > row.currentPrice ? 'decrease' : row.recommendedPrice < row.currentPrice ? 'increase' : 'accent'}
                           />
                         </TableCell>
-                        <TableCell
-  sx={{
-    color: row.failed ? tokens.decrease : tokens.inkSoft,
-    fontSize: '13px'
-  }}
->
-  {row.aiExplanation || row.reason}
-</TableCell>
+                        <TableCell sx={{ color: row.failed ? tokens.decrease : tokens.inkSoft, fontSize: '13px' }}>
+                          {row.reason}
+                        </TableCell>
                         <TableCell align="right">
                           <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end', alignItems: 'center' }}>
                             {!row.failed && (
@@ -841,14 +834,7 @@ export default function PricingRecommendation() {
                         </TableCell>
                         <TableCell><PriceTag value={h.oldPrice} size="small" /></TableCell>
                         <TableCell><PriceTag value={h.recommendedPrice} size="small" variant="accent" /></TableCell>
-                       <TableCell
-  sx={{
-    color: tokens.inkSoft,
-    fontSize: '13px'
-  }}
->
-  {h.aiExplanation || h.reason}
-</TableCell>
+                        <TableCell sx={{ color: tokens.inkSoft, fontSize: '13px' }}>{h.reason}</TableCell>
                       </TableRow>
                     ))}
                 </TableBody>
