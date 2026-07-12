@@ -1,47 +1,44 @@
 import { createTheme } from '@mui/material/styles';
 
 /*
-  DESIGN SYSTEM — Dynamic Pricing Engine
+  DESIGN SYSTEM — Dynamic Pricing Engine (DARK THEME)
   ----------------------------------------
-  Signature idea: this is a PRICING tool, so every price/number in the app
-  is rendered in a monospace font with tabular figures — like a ledger or
-  trading terminal readout. This is what makes it feel distinct instead of
-  a generic MUI dashboard. Keep this rule consistent across BOTH frontend
-  devs' pages: numbers = monospace, everything else = Inter/Sora.
+  Switched from light to dark. Since every page pulls colors from
+  `tokens` below (not hardcoded hex), most pages update automatically
+  just by this file changing — no need to touch Dashboard.jsx,
+  ProductManagement.jsx, or teammate's pages individually.
 
   Colors:
-    background      #FAFAF8   soft warm off-white (not stark white)
-    surface (cards)  #FFFFFF
-    ink (text)       #14171F
-    structure        #2B3A55   deep indigo — nav, headers, borders
-    accent (gold)    #C98A2C   used ONLY for prices/recommendations
-    increase         #3F7D58   muted green
-    decrease         #B4533C   muted rust
+    background      #0D0F14   near-black ink
+    surface (cards)  #161922   dark card surface
+    ink (text)       #F4F5F7   near-white
+    structure        #5B7099   medium slate-blue (readable as text/icons
+                                on dark bg, still reads as "brand navy")
+    accent (gold)    #D9A441   slightly brighter gold for dark bg
+    increase         #5FBE85   brighter green for dark bg
+    decrease         #E07B63   brighter rust for dark bg
 
-  Fonts:
-    Display/headings: Sora
-    Body/UI text:      Inter
-    Numbers/prices:    JetBrains Mono (always tabular-nums)
+  Fonts unchanged: Sora (headings), Inter (body), JetBrains Mono (prices)
 */
 
 export const tokens = {
-  background: '#FAFAF8',
-  surface: '#FFFFFF',
-  ink: '#14171F',
-  inkSoft: '#5B5F6B',
-  structure: '#2B3A55',
-  structureSoft: '#E7E9EE',
-  accent: '#C98A2C',
-  accentSoft: '#F6E9D3',
-  increase: '#3F7D58',
-  increaseSoft: '#E4F0E8',
-  decrease: '#B4533C',
-  decreaseSoft: '#F6E4DF',
+  background: '#0D0F14',
+  surface: '#161922',
+  ink: '#F4F5F7',
+  inkSoft: '#9AA0AC',
+  structure: '#5B7099',
+  structureSoft: 'rgba(91, 112, 153, 0.16)',
+  accent: '#D9A441',
+  accentSoft: 'rgba(217, 164, 65, 0.16)',
+  increase: '#5FBE85',
+  increaseSoft: 'rgba(95, 190, 133, 0.16)',
+  decrease: '#E07B63',
+  decreaseSoft: 'rgba(224, 123, 99, 0.16)',
 };
 
 const theme = createTheme({
   palette: {
-    mode: 'light',
+    mode: 'dark',
     background: {
       default: tokens.background,
       paper: tokens.surface,
@@ -52,11 +49,11 @@ const theme = createTheme({
     },
     primary: {
       main: tokens.structure,
-      contrastText: '#FFFFFF',
+      contrastText: '#0D0F14',
     },
     secondary: {
       main: tokens.accent,
-      contrastText: '#14171F',
+      contrastText: '#0D0F14',
     },
     success: {
       main: tokens.increase,
@@ -84,6 +81,13 @@ const theme = createTheme({
         root: {
           border: `1px solid ${tokens.structureSoft}`,
           boxShadow: 'none',
+          backgroundImage: 'none',
+          transition: 'transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease',
+          '&:hover': {
+            transform: 'translateY(-2px)',
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.35)',
+            borderColor: tokens.accent,
+          },
         },
       },
     },
@@ -91,6 +95,10 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: 8,
+          transition: 'transform 150ms ease',
+          '&:active': {
+            transform: 'scale(0.97)',
+          },
         },
       },
     },
@@ -101,6 +109,20 @@ const theme = createTheme({
           color: tokens.ink,
           boxShadow: 'none',
           borderBottom: `1px solid ${tokens.structureSoft}`,
+        },
+      },
+    },
+    MuiTableRow: {
+      styleOverrides: {
+        root: {
+          transition: 'background-color 150ms ease',
+        },
+      },
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        root: {
+          borderColor: tokens.structureSoft,
         },
       },
     },

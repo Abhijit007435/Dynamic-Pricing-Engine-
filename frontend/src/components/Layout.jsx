@@ -40,14 +40,14 @@ export default function Layout({ children }) {
           '& .MuiDrawer-paper': {
             width: DRAWER_WIDTH,
             boxSizing: 'border-box',
-            backgroundColor: tokens.structure,
-            color: '#fff',
-            border: 'none',
+            backgroundColor: tokens.surface,
+            color: tokens.ink,
+            borderRight: `1px solid ${tokens.structureSoft}`,
           },
         }}
       >
         <Box sx={{ p: 3, pb: 2 }}>
-          <Typography variant="h6" sx={{ color: '#fff', fontWeight: 700, lineHeight: 1.2 }}>
+          <Typography variant="h6" sx={{ color: tokens.accent, fontWeight: 700, lineHeight: 1.2 }}>
             Pricing<br />Engine
           </Typography>
         </Box>
@@ -62,10 +62,13 @@ export default function Layout({ children }) {
                 sx={{
                   borderRadius: 2,
                   mb: 0.5,
-                  color: active ? tokens.structure : 'rgba(255,255,255,0.85)',
+                  color: active ? tokens.background : tokens.inkSoft,
                   backgroundColor: active ? tokens.accent : 'transparent',
+                  transition: 'background-color 150ms ease, transform 150ms ease, color 150ms ease',
                   '&:hover': {
-                    backgroundColor: active ? tokens.accent : 'rgba(255,255,255,0.08)',
+                    backgroundColor: active ? tokens.accent : tokens.structureSoft,
+                    color: active ? tokens.background : tokens.ink,
+                    transform: 'translateX(4px)',
                   },
                 }}
               >
@@ -90,7 +93,25 @@ export default function Layout({ children }) {
             </Tooltip>
           </Toolbar>
         </AppBar>
-        <Box component="main" sx={{ flexGrow: 1, p: 4, backgroundColor: tokens.background }}>
+
+        {/* Page transition: the key={location.pathname} forces React to
+            remount this Box on every route change, which re-triggers the
+            CSS animation below — giving a fade+slide-in effect every time
+            you navigate to a different page. No extra library needed. */}
+        <Box
+          key={location.pathname}
+          component="main"
+          sx={{
+            flexGrow: 1,
+            p: 4,
+            backgroundColor: tokens.background,
+            animation: 'pageEnter 380ms ease-out',
+            '@keyframes pageEnter': {
+              '0%': { opacity: 0, transform: 'translateY(16px) scale(0.99)' },
+              '100%': { opacity: 1, transform: 'translateY(0) scale(1)' },
+            },
+          }}
+        >
           {children}
         </Box>
       </Box>
