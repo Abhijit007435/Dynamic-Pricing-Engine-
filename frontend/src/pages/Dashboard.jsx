@@ -7,6 +7,7 @@ import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
 import StatCard from '../components/StatCard';
 import PriceTag from '../components/PriceTag';
 import FadeIn from '../components/FadeIn';
+import TiltCard from '../components/TiltCard';
 import { tokens } from '../theme';
 import { getDashboardAnalytics, getDashboardRecommendations } from '../services/api';
 
@@ -25,9 +26,6 @@ const MOCK_RECENT_CHANGES = [
   { product: 'Webcam 1080p', oldPrice: 1899, newPrice: 1799, direction: 'down', stockStatus: 'NORMAL' },
 ];
 
-// Maps backend's stockStatus value to a color, so LOW/HIGH/NORMAL are
-// visually distinct at a glance (matches the same color language as
-// the rest of the app: decrease=rust, increase=green, neutral=structure).
 const stockStatusStyle = (status) => {
   const normalized = (status || '').toUpperCase();
   if (normalized === 'LOW') return { bg: tokens.decreaseSoft, color: tokens.decrease };
@@ -65,8 +63,6 @@ export default function Dashboard() {
     getDashboardRecommendations()
       .then((res) => {
         if (!isMounted) return;
-        // Real backend shape (DashboardRecommendationDTO):
-        // productName, oldPrice, recommendedPrice, stockStatus
         const list = Array.isArray(res.data) ? res.data : [];
         const mapped = list.slice(0, 5).map((item) => ({
           product: item.productName ?? 'Unknown',
@@ -112,13 +108,19 @@ export default function Dashboard() {
         <>
           <Stack direction="row" spacing={2} sx={{ mb: 4, flexWrap: 'wrap', gap: 2 }}>
             <FadeIn delay={0}>
-              <StatCard label="Total Products" value={stats.totalProducts} icon={<StorefrontOutlinedIcon />} />
+              <TiltCard>
+                <StatCard label="Total Products" value={stats.totalProducts} icon={<StorefrontOutlinedIcon />} />
+              </TiltCard>
             </FadeIn>
             <FadeIn delay={100}>
-              <StatCard label="Low Stock Products" value={stats.lowStockCount} icon={<Inventory2OutlinedIcon />} />
+              <TiltCard>
+                <StatCard label="Low Stock Products" value={stats.lowStockCount} icon={<Inventory2OutlinedIcon />} />
+              </TiltCard>
             </FadeIn>
             <FadeIn delay={200}>
-              <StatCard label="Recommendations" value={stats.recommendationsToday} icon={<TrendingUpOutlinedIcon />} accent />
+              <TiltCard>
+                <StatCard label="Recommendations" value={stats.recommendationsToday} icon={<TrendingUpOutlinedIcon />} accent />
+              </TiltCard>
             </FadeIn>
           </Stack>
 
