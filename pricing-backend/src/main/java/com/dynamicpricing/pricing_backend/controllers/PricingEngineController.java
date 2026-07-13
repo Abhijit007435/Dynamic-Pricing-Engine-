@@ -9,7 +9,7 @@ import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/pricing-engine")
+@RequestMapping("/api/pricing-engine")
 @RequiredArgsConstructor
 public class PricingEngineController {
 

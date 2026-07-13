@@ -1,68 +1,55 @@
-import axios from 'axios';
+import axios from "axios";
 
-// Backend now has CORS configured properly (CorsConfig.java) and uses Spring
-// Security Basic Auth, so we call it directly instead of relying on a proxy.
-// TODO: set VITE_API_URL to the real deployed backend URL once it's live.
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
-
-// A couple of backend controllers (PricingEngineController, PricingHistoryController)
-// are NOT mapped under /api — they're at root level (/pricing-engine, /pricing-history).
-// So we derive a second client that strips the trailing /api for those two.
-const ROOT_URL = BASE_URL.replace(/\/api\/?$/, '');
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:8080";
 
 const api = axios.create({
-  baseURL: BASE_URL,
-  headers: { 'Content-Type': 'application/json' },
-  // Spring Security Basic Auth Credentials
-  // NOTE: this password is Spring's auto-generated one and changes every
-  // backend restart — ask backend team to set a FIXED username/password
-  // in SecurityConfig.java so this stops breaking.
-  auth: {
-    username: 'user',
-    password: '75a3b21a-3695-47b8-bb68-cc6bb8154dc4'
-  }
+  baseURL: `${API_BASE_URL}/api`,
+  headers: {
+    "Content-Type": "application/json",
+  },
 });
 
-const rootApi = axios.create({
-  baseURL: ROOT_URL,
-  headers: { 'Content-Type': 'application/json' },
-  auth: {
-    username: 'user',
-    password: '75a3b21a-3695-47b8-bb68-cc6bb8154dc4'
-  }
-});
-
-// ---- Product APIs ----
-export const getProducts = () => api.get('/products');
-export const addProduct = (data) => api.post('/products', data);
+// ==================== Products ====================
+export const getProducts = () => api.get("/products");
+export const addProduct = (data) => api.post("/products", data);
 export const updateProduct = (id, data) => api.put(`/products/${id}`, data);
 export const deleteProduct = (id) => api.delete(`/products/${id}`);
 
-// ---- Inventory APIs (used by Dev 2) ----
-export const getInventory = () => api.get('/inventory');
-export const addInventory = (data) => api.post('/inventory', data);
+// ==================== Inventory ====================
+export const getInventory = () => api.get("/inventory");
+export const addInventory = (data) => api.post("/inventory", data);
 export const updateInventory = (id, data) => api.put(`/inventory/${id}`, data);
 export const deleteInventory = (id) => api.delete(`/inventory/${id}`);
 
-// ---- Competitor Price APIs (used by Dev 2) ----
-export const getCompetitorPrices = () => api.get('/competitor-prices');
-export const addCompetitorPrice = (data) => api.post('/competitor-prices', data);
-export const updateCompetitorPrice = (id, data) => api.put(`/competitor-prices/${id}`, data);
-export const deleteCompetitorPrice = (id) => api.delete(`/competitor-prices/${id}`);
+// ==================== Competitor Prices ====================
+export const getCompetitorPrices = () => api.get("/competitor-prices");
+export const addCompetitorPrice = (data) =>
+  api.post("/competitor-prices", data);
+export const updateCompetitorPrice = (id, data) =>
+  api.put(`/competitor-prices/${id}`, data);
+export const deleteCompetitorPrice = (id) =>
+  api.delete(`/competitor-prices/${id}`);
 
-// ---- Pricing Engine APIs (used by Dev 2) ----
-// Real endpoint: POST /pricing-engine/calculate/{productId} — no /api prefix, no body.
-export const calculatePrice = (productId) => rootApi.post(`/pricing-engine/calculate/${productId}`);
-// Real endpoint: GET /pricing-history — no /api prefix.
-export const getPricingHistory = () => rootApi.get('/pricing-history');
-// Pricing History filtered by a specific product (used by Pricing Recommendation page)
-export const getPricingHistoryByProduct = (productId) => rootApi.get(`/pricing-history/product/${productId}`);
+export const getPriceComparison = (productId) =>
+  api.get(`/competitor-prices/compare/${productId}`);
 
-// ---- Price comparison (single product vs its competitors, backend-computed) ----
-export const getPriceComparison = (productId) => api.get(`/competitor-prices/compare/${productId}`);
+// ==================== Pricing Engine ====================
+export const calculatePrice = (productId) =>
+  api.post(`/pricing-engine/calculate/${productId}`);
 
-// ---- Analytics APIs (for Dashboard) ----
-export const getDashboardAnalytics = () => api.get('/analytics/dashboard');
-export const getDashboardRecommendations = () => api.get('/analytics/dashboard-recommendations');
+// ==================== Pricing History ====================
+export const getPricingHistory = () =>
+  api.get("/pricing-history");
+
+export const getPricingHistoryByProduct = (productId) =>
+  api.get(`/pricing-history/product/${productId}`);
+
+// ==================== Dashboard Analytics ====================
+export const getDashboardAnalytics = () =>
+  api.get("/analytics/dashboard");
+
+export const getDashboardRecommendations = () =>
+  api.get("/analytics/dashboard-recommendations");
 
 export default api;
