@@ -1,20 +1,6 @@
 import { useRef, useState } from 'react';
 import { Box } from '@mui/material';
 
-/*
-  TiltCard — wraps any content and gives it a 3D tilt effect that follows
-  the mouse, plus a subtle glossy "shine" that moves with the cursor.
-
-  Usage:
-  <TiltCard>
-    <StatCard ... />
-  </TiltCard>
-
-  How it works: as the mouse moves over the card, we calculate how far
-  the cursor is from the center (as a percentage), and use that to rotate
-  the card slightly on the X/Y axis — like the card is physically tilting
-  toward the cursor. On mouse leave, it smoothly resets to flat.
-*/
 export default function TiltCard({ children, maxTilt = 12, glare = true }) {
   const ref = useRef(null);
   const [transform, setTransform] = useState('perspective(800px) rotateX(0deg) rotateY(0deg) scale3d(1,1,1)');
