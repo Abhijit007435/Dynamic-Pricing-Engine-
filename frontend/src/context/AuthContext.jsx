@@ -1,28 +1,41 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth, signInWithGoogle, firebaseSignOut } from '../firebase';
 
 /*
-  AuthContext — keeps track of whether someone is logged in.
+  AuthContext — now supports TWO login methods:
+  1. Existing username/password (admin/admin123) — unchanged, still works
+  2. NEW: Google Sign-In via Firebase
 
-  TEMPORARY: login() below checks a hardcoded username/password.
-  Once backend team gives you a real login API (e.g. POST /auth/login),
-  replace the check inside login() with an actual api call — everything
-  else (ProtectedRoute, Login page) stays the same.
+  Both set the same `isLoggedIn` state, so the rest of the app (ProtectedRoute,
+  Layout, etc.) doesn't need to know or care which method was used.
 */
 
 const AuthContext = createContext(null);
 
-const MOCK_ADMIN = { username: 'admin', password: 'admin123' };
+const DEFAULT_ADMIN = { username: 'admin', password: 'admin123' };
 
 export function AuthProvider({ children }) {
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return localStorage.getItem('isLoggedIn') === 'true';
-  });
+  const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem('isLoggedIn') === 'true');
+  const [googleUser, setGoogleUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
+  // Listen for Firebase auth state changes (handles page refresh, etc.)
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setGoogleUser(user);
+        setIsLoggedIn(true);
+        localStorage.setItem('isLoggedIn', 'true');
+      }
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Existing username/password login — unchanged behavior
   const login = (username, password) => {
-    // TODO: replace this block with a real API call once backend is ready:
-    // const res = await loginApi(username, password);
-    // if (res.data.success) { ... }
-    if (username === MOCK_ADMIN.username && password === MOCK_ADMIN.password) {
+    if (username === DEFAULT_ADMIN.username && password === DEFAULT_ADMIN.password) {
       localStorage.setItem('isLoggedIn', 'true');
       setIsLoggedIn(true);
       return { success: true };
@@ -30,13 +43,37 @@ export function AuthProvider({ children }) {
     return { success: false, message: 'Invalid username or password' };
   };
 
-  const logout = () => {
-    localStorage.removeItem('isLoggedIn');
-    setIsLoggedIn(false);
+  // NEW: Google Sign-In
+  const loginWithGoogle = async () => {
+    try {
+      const result = await signInWithGoogle();
+      setGoogleUser(result.user);
+      setIsLoggedIn(true);
+      localStorage.setItem('isLoggedIn', 'true');
+      return { success: true };
+    } catch (err) {
+      // User closing the Google popup counts as "cancelled", not a real error
+      if (err.code === 'auth/popup-closed-by-user') {
+        return { success: false, message: '' };
+      }
+      return { success: false, message: 'Google sign-in failed. Please try again.' };
+    }
   };
 
+  const logout = async () => {
+    if (googleUser) {
+      await firebaseSignOut();
+    }
+    localStorage.removeItem('isLoggedIn');
+    setIsLoggedIn(false);
+    setGoogleUser(null);
+  };
+
+  // Display name works for either login method
+  const displayName = googleUser?.displayName || googleUser?.email || 'admin';
+
   return (
-    <AuthContext.Provider value={{ isLoggedIn, login, logout }}>
+    <AuthContext.Provider value={{ isLoggedIn, authLoading, displayName, googleUser, login, loginWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );
