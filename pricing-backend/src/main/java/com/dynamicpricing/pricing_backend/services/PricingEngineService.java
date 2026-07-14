@@ -137,6 +137,7 @@ public class PricingEngineService {
 
     if (!competitors.isEmpty()) {
 
+        @SuppressWarnings("null")
         double averageCompetitorPrice =
                 competitors.stream()
                         .mapToDouble(
@@ -178,6 +179,7 @@ public class PricingEngineService {
                     recommendedPrice * 100.0)
                     / 100.0;
 
+    @SuppressWarnings("null")
     double avgCompetitorPrice =
             competitors.stream()
                     .mapToDouble(
@@ -199,7 +201,9 @@ public class PricingEngineService {
                         product.getProductName(),
                         product.getCurrentPrice(),
                         recommendedPrice,
-                        product.getDemandLevel().name(),
+                       product.getDemandLevel() != null
+        ? product.getDemandLevel().name()
+        : "MEDIUM",
                         inventory.getAvailableQuantity(),
                         avgCompetitorPrice
                 );

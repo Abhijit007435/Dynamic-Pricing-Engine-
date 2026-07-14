@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/pricing-history")
+@RequestMapping("/api/pricing-history")
 public class PricingHistoryController {
 
     @Autowired
