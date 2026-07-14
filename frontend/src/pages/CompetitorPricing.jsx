@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  DialogContentText,
   TextField,
   Chip,
   Alert,
@@ -24,6 +25,7 @@ import {
   InputAdornment,
   Autocomplete,
   Snackbar,
+  Checkbox,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -32,9 +34,10 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import { tokens } from '../theme';
 import PriceTag from '../components/PriceTag';
-import { getCompetitorPrices, addCompetitorPrice, updateCompetitorPrice, deleteCompetitorPrice, getProducts } from '../services/api';
+import { getCompetitorPrices, addCompetitorPrice, updateCompetitorPrice, deleteCompetitorPrice, getProducts, getPriceComparison } from '../services/api';
 
 export default function CompetitorPricing() {
   const [items, setItems] = useState([]);
@@ -43,11 +46,9 @@ export default function CompetitorPricing() {
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // NEW: sort state
   const [orderBy, setOrderBy] = useState('productName');
   const [order, setOrder] = useState('asc');
 
-  // NEW: pagination state
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
@@ -58,6 +59,33 @@ export default function CompetitorPricing() {
 
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [pendingDeletes, setPendingDeletes] = useState({});
+
+  // NEW: bulk-select state
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const tableRef = useRef(null);
+
+  // NEW: product-level "Compare Prices" feature (per functional requirements —
+  // this is product-level, not row-level, since the backend returns an average
+  // across all competitors for a product, not a single-competitor comparison)
+  const [compareProduct, setCompareProduct] = useState(null);
+  const [compareResult, setCompareResult] = useState(null);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareError, setCompareError] = useState(null);
+
+  // NEW: clicking anywhere outside the table (and its action bar) clears the
+  // current selection, instead of having to uncheck each row one by one.
+  useEffect(() => {
+    if (selectedIds.length === 0) return;
+    const handleClickOutside = (event) => {
+      if (tableRef.current && !tableRef.current.contains(event.target)) {
+        setSelectedIds([]);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [selectedIds.length]);
 
   const showSnackbar = (message, severity = 'success', undoId = null) => {
     setSnackbar({ open: true, message, severity, undoId });
@@ -201,6 +229,56 @@ export default function CompetitorPricing() {
     showSnackbar('Delete undone.', 'success');
   };
 
+  // NEW: bulk-delete handler — no per-item undo, confirmation dialog guards against mistakes instead
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of selectedIds) {
+      try {
+        await deleteCompetitorPrice(id);
+        successCount += 1;
+      } catch (err) {
+        failCount += 1;
+      }
+    }
+
+    setBulkDeleting(false);
+    setBulkDeleteConfirmOpen(false);
+    setSelectedIds([]);
+
+    if (failCount === 0) {
+      showSnackbar(`Deleted ${successCount} competitor pricing record(s).`, 'success');
+    } else {
+      showSnackbar(`Deleted ${successCount} record(s), ${failCount} failed. Please retry those.`, 'error');
+    }
+
+    fetchItems();
+  };
+
+  // NEW: product-level compare — calls backend's compare endpoint which
+  // returns an average across all competitor entries for that product.
+  // Backend throws a 400 if the product has no competitor prices recorded yet.
+  const handleCompare = async () => {
+    if (!compareProduct) return;
+    setCompareLoading(true);
+    setCompareError(null);
+    setCompareResult(null);
+    try {
+      const response = await getPriceComparison(compareProduct.id);
+      setCompareResult(response.data);
+    } catch (err) {
+      if (err?.response?.status === 400) {
+        setCompareError('This product has no competitor prices recorded yet. Add one above to enable comparison.');
+      } else {
+        setCompareError('Could not fetch comparison for this product. Please try again.');
+      }
+    } finally {
+      setCompareLoading(false);
+    }
+  };
+
   const getComparison = (ourPrice, competitorPrice) => {
     if (ourPrice == null) {
       return { label: 'No product price', color: tokens.inkSoft, bg: tokens.structureSoft, icon: null };
@@ -228,7 +306,6 @@ export default function CompetitorPricing() {
     return { text: 'Equal', color: tokens.inkSoft };
   };
 
-  // NEW: sort handler
   const handleSortRequest = (property) => {
     const isAsc = orderBy === property && order === 'asc';
     setOrder(isAsc ? 'desc' : 'asc');
@@ -246,7 +323,6 @@ export default function CompetitorPricing() {
     });
   }, [items, searchQuery, pendingDeletes]);
 
-  // NEW: sorted list (applied after filtering)
   const sortedItems = useMemo(() => {
     const list = [...filteredItems];
     list.sort((a, b) => {
@@ -266,7 +342,6 @@ export default function CompetitorPricing() {
     return list;
   }, [filteredItems, orderBy, order]);
 
-  // NEW: paginated slice
   const paginatedItems = useMemo(() => {
     const start = page * rowsPerPage;
     return sortedItems.slice(start, start + rowsPerPage);
@@ -278,12 +353,10 @@ export default function CompetitorPricing() {
     setPage(0);
   };
 
-  // reset to page 0 whenever search/filter changes result size
   useEffect(() => {
     setPage(0);
   }, [searchQuery]);
 
-  // NEW: CSV export (uses filtered+sorted set, not just current page)
   const handleExportCsv = () => {
     const headers = ['Product Name', 'Product ID', 'Competitor', 'Our Price', 'Competitor Price', 'Comparison'];
     const rows = sortedItems.map((item) => {
@@ -313,9 +386,28 @@ export default function CompetitorPricing() {
     URL.revokeObjectURL(url);
   };
 
+  // NEW: bulk-select helpers
+  const allOnPageSelected =
+    paginatedItems.length > 0 && paginatedItems.every((item) => selectedIds.includes(item.id));
+  const someOnPageSelected = paginatedItems.some((item) => selectedIds.includes(item.id));
+
+  const toggleSelectAllOnPage = () => {
+    if (allOnPageSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !paginatedItems.some((item) => item.id === id)));
+    } else {
+      const newIds = paginatedItems.map((item) => item.id);
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...newIds])));
+    }
+  };
+
+  const toggleSelectRow = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mb: 3 }}>
+      <Box ref={tableRef}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h4">Competitor Pricing</Typography>
           <Typography variant="body2" sx={{ color: tokens.inkSoft, mt: 0.5 }}>
@@ -323,6 +415,16 @@ export default function CompetitorPricing() {
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1.5 }}>
+          {selectedIds.length > 0 && (
+            <Button
+              variant="contained"
+              startIcon={<DeleteOutlineIcon />}
+              onClick={() => setBulkDeleteConfirmOpen(true)}
+              sx={{ bgcolor: tokens.decrease, '&:hover': { bgcolor: tokens.decrease, opacity: 0.9 } }}
+            >
+              Delete Selected ({selectedIds.length})
+            </Button>
+          )}
           <Button variant="outlined" startIcon={<FileDownloadIcon />} onClick={handleExportCsv}>
             Export CSV
           </Button>
@@ -331,6 +433,117 @@ export default function CompetitorPricing() {
           </Button>
         </Box>
       </Box>
+
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <CompareArrowsIcon sx={{ color: tokens.inkSoft }} />
+          <Typography variant="h6">Compare Prices</Typography>
+        </Box>
+        <Typography variant="body2" sx={{ color: tokens.inkSoft, mb: 2 }}>
+          See how a product's price stacks up against the average of all its tracked competitor prices.
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Autocomplete
+            sx={{ minWidth: 280 }}
+            options={products}
+            getOptionLabel={(option) => option.productName || ''}
+            value={compareProduct}
+            onChange={(event, newValue) => {
+              setCompareProduct(newValue);
+              setCompareResult(null);
+              setCompareError(null);
+            }}
+            autoHighlight
+            filterOptions={(options, state) => {
+              const search = state.inputValue.toLowerCase();
+              return options.filter((option) => (option.productName || '').toLowerCase().includes(search));
+            }}
+            renderInput={(params) => (
+              <TextField {...params} label="Select product to compare" placeholder="Type product name..." />
+            )}
+            noOptionsText="No matching products found"
+          />
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={handleCompare}
+            disabled={!compareProduct || compareLoading}
+          >
+            {compareLoading ? 'Comparing...' : 'Compare'}
+          </Button>
+        </Box>
+
+        {compareError && (
+          <Alert severity="warning" sx={{ mt: 2 }} onClose={() => setCompareError(null)}>
+            {compareError}
+          </Alert>
+        )}
+
+        {compareResult && !compareLoading && (() => {
+          // Exact fields confirmed from backend's PriceComparisonDTO.java:
+          // productName, ourPrice, competitorPrice, difference, status
+          // NOTE: "competitorPrice" here holds the AVERAGE value — the DTO is
+          // shared with PricingEngineService's single-latest-price endpoint,
+          // which is why the field isn't named "avgCompetitorPrice".
+          const { ourPrice, competitorPrice: avgCompetitorPrice, difference, status } = compareResult;
+
+          const statusMap = {
+            CHEAPER: { label: 'We are cheaper', color: tokens.increase, bg: tokens.increaseSoft, icon: <ArrowDownwardIcon fontSize="small" /> },
+            MORE_EXPENSIVE: { label: 'We are costlier', color: tokens.decrease, bg: tokens.decreaseSoft, icon: <ArrowUpwardIcon fontSize="small" /> },
+            SAME_PRICE: { label: 'Same price', color: tokens.inkSoft, bg: tokens.structureSoft, icon: null },
+          };
+          const comparison = statusMap[status] || statusMap.SAME_PRICE;
+
+          const percentDiff =
+            ourPrice > 0 ? `${((difference / ourPrice) * 100).toFixed(1)}%` : null;
+
+          return (
+            <Box
+              sx={{
+                mt: 3,
+                p: 2.5,
+                borderRadius: 1,
+                bgcolor: tokens.structureSoft,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                flexWrap: 'wrap',
+              }}
+            >
+              <Box>
+                <Typography variant="body2" sx={{ color: tokens.inkSoft, mb: 0.5 }}>
+                  Our Price
+                </Typography>
+                <PriceTag value={ourPrice} size="large" />
+              </Box>
+              <Box>
+                <Typography variant="body2" sx={{ color: tokens.inkSoft, mb: 0.5 }}>
+                  Average Competitor Price
+                </Typography>
+                <PriceTag value={avgCompetitorPrice} size="large" />
+              </Box>
+              <Box>
+                <Typography variant="body2" sx={{ color: tokens.inkSoft, mb: 0.5 }}>
+                  Difference
+                </Typography>
+                <Box sx={{ fontFamily: '"JetBrains Mono", monospace', fontWeight: 600, color: comparison.color }}>
+                  ₹{difference}{percentDiff ? ` (${percentDiff})` : ''}
+                </Box>
+              </Box>
+              <Chip
+                icon={comparison.icon || undefined}
+                label={comparison.label}
+                sx={{
+                  bgcolor: comparison.bg,
+                  color: comparison.color,
+                  fontWeight: 600,
+                  '& .MuiChip-icon': { color: comparison.color },
+                }}
+              />
+            </Box>
+          );
+        })()}
+      </Paper>
 
       <Box sx={{ mb: 2, maxWidth: '360px' }}>
         <TextField
@@ -359,6 +572,22 @@ export default function CompetitorPricing() {
         <Table>
           <TableHead>
             <TableRow>
+              <TableCell
+                padding="checkbox"
+                sx={{ '&:hover .row-checkbox': { opacity: 1 } }}
+              >
+                <Checkbox
+                  className="row-checkbox"
+                  checked={allOnPageSelected}
+                  indeterminate={!allOnPageSelected && someOnPageSelected}
+                  onChange={toggleSelectAllOnPage}
+                  disabled={paginatedItems.length === 0}
+                  sx={{
+                    opacity: selectedIds.length > 0 || allOnPageSelected ? 1 : 0,
+                    transition: 'opacity 0.15s ease',
+                  }}
+                />
+              </TableCell>
               <TableCell sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>
                 <TableSortLabel
                   active={orderBy === 'productName'}
@@ -403,7 +632,7 @@ export default function CompetitorPricing() {
             {loading &&
               Array.from({ length: 4 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 6 }).map((__, j) => (
+                  {Array.from({ length: 7 }).map((__, j) => (
                     <TableCell key={j}>
                       <Skeleton variant="text" />
                     </TableCell>
@@ -413,7 +642,7 @@ export default function CompetitorPricing() {
 
             {!loading && paginatedItems.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 6, color: tokens.inkSoft }}>
+                <TableCell colSpan={7} align="center" sx={{ py: 6, color: tokens.inkSoft }}>
                   No competitor records match your view.
                 </TableCell>
               </TableRow>
@@ -423,8 +652,25 @@ export default function CompetitorPricing() {
               paginatedItems.map((item) => {
                 const comparison = getComparison(item.ourPrice, item.competitorPrice);
                 const percentDiff = getPriceDiffPercentage(item.ourPrice, item.competitorPrice);
+                const isSelected = selectedIds.includes(item.id);
                 return (
-                  <TableRow key={item.id} hover>
+                  <TableRow
+                    key={item.id}
+                    hover
+                    selected={isSelected}
+                    sx={{ '&:hover .row-checkbox': { opacity: 1 } }}
+                  >
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        className="row-checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelectRow(item.id)}
+                        sx={{
+                          opacity: isSelected ? 1 : 0,
+                          transition: 'opacity 0.15s ease',
+                        }}
+                      />
+                    </TableCell>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 500 }}>{item.productName}</Typography>
                       <Typography variant="caption" sx={{ fontFamily: '"JetBrains Mono", monospace', color: tokens.inkSoft, opacity: 0.7, fontSize: '11px' }}>
@@ -480,6 +726,7 @@ export default function CompetitorPricing() {
           onRowsPerPageChange={handleChangeRowsPerPage}
         />
       </TableContainer>
+      </Box>
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>
@@ -557,6 +804,30 @@ export default function CompetitorPricing() {
               {saving ? 'Saving...' : duplicateRecord ? 'Overwrite' : 'Save'}
             </Button>
           </Box>
+        </DialogActions>
+      </Dialog>
+
+      {/* NEW: bulk-delete confirmation dialog */}
+      <Dialog open={bulkDeleteConfirmOpen} onClose={() => !bulkDeleting && setBulkDeleteConfirmOpen(false)}>
+        <DialogTitle sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>
+          Confirm Bulk Delete
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            You're about to permanently delete <strong>{selectedIds.length}</strong> competitor pricing record(s).
+            This action cannot be undone (unlike single-row delete, there is no undo window for bulk delete).
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setBulkDeleteConfirmOpen(false)} disabled={bulkDeleting}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting}
+            sx={{ bgcolor: tokens.decrease, '&:hover': { bgcolor: tokens.decrease, opacity: 0.9 } }}
+          >
+            {bulkDeleting ? 'Deleting...' : 'Delete Permanently'}
+          </Button>
         </DialogActions>
       </Dialog>
 

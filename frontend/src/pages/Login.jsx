@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Paper, Typography, TextField, Button, Alert, Stack } from '@mui/material';
+import { Box, Paper, Typography, TextField, Button, Alert, Stack, Divider } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import PriceChangeOutlinedIcon from '@mui/icons-material/PriceChangeOutlined';
 import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
@@ -14,11 +14,24 @@ const features = [
   { icon: <ShowChartOutlinedIcon />, text: 'Competitor price comparison' },
 ];
 
+// Simple inline Google "G" logo — no extra icon library needed
+function GoogleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18">
+      <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.85 2.09-1.81 2.73v2.27h2.92c1.71-1.57 2.69-3.88 2.69-6.64z" />
+      <path fill="#34A853" d="M9 18c2.43 0 4.47-.81 5.96-2.19l-2.92-2.27c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.70H.95v2.34C2.43 15.98 5.48 18 9 18z" />
+      <path fill="#FBBC05" d="M3.97 10.7c-.18-.54-.28-1.11-.28-1.7s.1-1.16.28-1.7V4.96H.95C.35 6.17 0 7.55 0 9s.35 2.83.95 4.04l3.02-2.34z" />
+      <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.59-2.59C13.46.89 11.43 0 9 0 5.48 0 2.43 2.02.95 4.96l3.02 2.34C4.68 5.16 6.66 3.58 9 3.58z" />
+    </svg>
+  );
+}
+
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { login } = useAuth();
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = (e) => {
@@ -32,9 +45,21 @@ export default function Login() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setGoogleLoading(true);
+    const result = await loginWithGoogle();
+    setGoogleLoading(false);
+    if (result.success) {
+      navigate('/');
+    } else if (result.message) {
+      setError(result.message);
+    }
+  };
+
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex' }}>
-      {/* LEFT PANEL — branding / context, tells the user what they're logging into */}
+      {/* LEFT PANEL — branding / context */}
       <Box
         sx={{
           flex: 1,
@@ -42,65 +67,48 @@ export default function Login() {
           flexDirection: 'column',
           justifyContent: 'center',
           px: 8,
-          backgroundColor: tokens.structure,
-          color: '#fff',
-          position: 'relative',
-          overflow: 'hidden',
+          backgroundColor: tokens.surface,
+          borderRight: `1px solid ${tokens.structureSoft}`,
         }}
       >
-        <Box sx={{ position: 'relative', zIndex: 1 }}>
-          <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 4 }}>
-            <PriceChangeOutlinedIcon sx={{ fontSize: 32, color: tokens.accent }} />
-            <Typography variant="h5" sx={{ fontWeight: 700, fontFamily: '"Sora", sans-serif' }}>
-              Dynamic Pricing Engine
-            </Typography>
-          </Stack>
-
-          <Typography variant="h3" sx={{ fontWeight: 700, fontFamily: '"Sora", sans-serif', mb: 2, maxWidth: 440 }}>
-            The admin console for smarter product pricing
+        <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 4 }}>
+          <PriceChangeOutlinedIcon sx={{ fontSize: 32, color: tokens.accent }} />
+          <Typography variant="h5" sx={{ fontWeight: 700, fontFamily: '"Sora", sans-serif', color: tokens.ink }}>
+            Dynamic Pricing Engine
           </Typography>
-          <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.7)', mb: 5, maxWidth: 420 }}>
-            Manage products, track inventory, monitor competitors, and get
-            automated pricing recommendations — all from one dashboard.
-          </Typography>
+        </Stack>
 
-          <Stack spacing={2.5}>
-            {features.map((f, i) => (
-              <Stack key={i} direction="row" alignItems="center" spacing={2}>
-                <Box
-                  sx={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: '50%',
-                    backgroundColor: 'rgba(201, 138, 44, 0.15)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: tokens.accent,
-                  }}
-                >
-                  {f.icon}
-                </Box>
-                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.85)' }}>
-                  {f.text}
-                </Typography>
-              </Stack>
-            ))}
-          </Stack>
-        </Box>
+        <Typography variant="h3" sx={{ fontWeight: 700, fontFamily: '"Sora", sans-serif', mb: 2, maxWidth: 440, color: tokens.ink }}>
+          The admin console for smarter product pricing
+        </Typography>
+        <Typography variant="body1" sx={{ color: tokens.inkSoft, mb: 5, maxWidth: 420 }}>
+          Manage products, track inventory, monitor competitors, and get
+          automated pricing recommendations — all from one dashboard.
+        </Typography>
 
-        {/* subtle decorative background circle, purely visual */}
-        <Box
-          sx={{
-            position: 'absolute',
-            width: 400,
-            height: 400,
-            borderRadius: '50%',
-            border: '1px solid rgba(255,255,255,0.08)',
-            top: -100,
-            right: -150,
-          }}
-        />
+        <Stack spacing={2.5}>
+          {features.map((f, i) => (
+            <Stack key={i} direction="row" alignItems="center" spacing={2}>
+              <Box
+                sx={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  backgroundColor: tokens.accentSoft,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: tokens.accent,
+                }}
+              >
+                {f.icon}
+              </Box>
+              <Typography variant="body2" sx={{ color: tokens.inkSoft }}>
+                {f.text}
+              </Typography>
+            </Stack>
+          ))}
+        </Stack>
       </Box>
 
       {/* RIGHT PANEL — the actual login form */}
@@ -115,13 +123,12 @@ export default function Login() {
         }}
       >
         <Box sx={{ width: '100%', maxWidth: 380 }}>
-          {/* Show the brand mark here too, for mobile users who don't see the left panel */}
           <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 4, display: { xs: 'flex', md: 'none' } }}>
             <PriceChangeOutlinedIcon sx={{ color: tokens.accent }} />
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>Dynamic Pricing Engine</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: tokens.ink }}>Dynamic Pricing Engine</Typography>
           </Stack>
 
-          <Typography variant="h5" sx={{ mb: 0.5, fontWeight: 700 }}>
+          <Typography variant="h5" sx={{ mb: 0.5, fontWeight: 700, color: tokens.ink }}>
             Welcome back
           </Typography>
           <Typography variant="body2" sx={{ color: tokens.inkSoft, mb: 4 }}>
@@ -129,6 +136,27 @@ export default function Login() {
           </Typography>
 
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+          {/* NEW: Google Sign-In button */}
+          <Button
+            fullWidth
+            variant="outlined"
+            size="large"
+            startIcon={<GoogleIcon />}
+            onClick={handleGoogleSignIn}
+            disabled={googleLoading}
+            sx={{
+              py: 1.3,
+              borderColor: tokens.structureSoft,
+              color: tokens.ink,
+              fontWeight: 600,
+              '&:hover': { borderColor: tokens.accent, backgroundColor: tokens.accentSoft },
+            }}
+          >
+            {googleLoading ? 'Signing in...' : 'Continue with Google'}
+          </Button>
+
+          <Divider sx={{ my: 3, color: tokens.inkSoft, fontSize: '0.8rem' }}>or</Divider>
 
           <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
             <TextField
@@ -152,31 +180,21 @@ export default function Login() {
               sx={{
                 mt: 1,
                 py: 1.4,
-                backgroundColor: tokens.structure,
+                backgroundColor: tokens.accent,
+                color: tokens.background,
                 fontWeight: 600,
-                '&:hover': { backgroundColor: '#1f2a3f' },
+                transition: 'transform 150ms ease, box-shadow 150ms ease',
+                '&:hover': {
+                  backgroundColor: tokens.accent,
+                  transform: 'translateY(-2px)',
+                  boxShadow: `0 8px 20px ${tokens.accentSoft}`,
+                },
               }}
             >
               Sign In
             </Button>
           </Box>
 
-          <Paper
-            variant="outlined"
-            sx={{
-              mt: 4,
-              p: 2,
-              backgroundColor: tokens.accentSoft,
-              borderColor: tokens.accent,
-            }}
-          >
-            <Typography variant="caption" sx={{ color: tokens.ink, display: 'block', fontWeight: 600, mb: 0.3 }}>
-              Demo credentials
-            </Typography>
-            <Typography variant="caption" sx={{ color: tokens.inkSoft }}>
-              Username: <b>admin</b> &nbsp;·&nbsp; Password: <b>admin123</b>
-            </Typography>
-          </Paper>
         </Box>
       </Box>
     </Box>
