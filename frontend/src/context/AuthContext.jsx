@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, signInWithGoogle, firebaseSignOut } from '../firebase';
+import { auth, signInWithGoogle, firebaseSignOut, isFirebaseConfigured } from '../firebase';
 
 const AuthContext = createContext(null);
 
@@ -13,6 +13,12 @@ export function AuthProvider({ children }) {
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
+    if (!auth) {
+      // Firebase not configured locally — skip auth listener.
+      setAuthLoading(false);
+      return undefined;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setGoogleUser(user);
@@ -34,6 +40,15 @@ export function AuthProvider({ children }) {
   };
 
   const loginWithGoogle = async () => {
+    // Dev fallback: simulate Google auth when Firebase not configured.
+    if (!isFirebaseConfigured && import.meta.env.DEV) {
+      const fakeUser = { displayName: 'Dev User', email: 'dev@local' };
+      setGoogleUser(fakeUser);
+      setIsLoggedIn(true);
+      localStorage.setItem('isLoggedIn', 'true');
+      return { success: true };
+    }
+
     try {
       const result = await signInWithGoogle();
       setGoogleUser(result.user);
@@ -41,7 +56,7 @@ export function AuthProvider({ children }) {
       localStorage.setItem('isLoggedIn', 'true');
       return { success: true };
     } catch (err) {
-      if (err.code === 'auth/popup-closed-by-user') {
+      if (err?.code === 'auth/popup-closed-by-user') {
         return { success: false, message: '' };
       }
       return { success: false, message: 'Google sign-in failed. Please try again.' };
