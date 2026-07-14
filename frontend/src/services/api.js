@@ -2,7 +2,6 @@ import axios from 'axios';
 
 // Backend now has CORS configured properly (CorsConfig.java) and uses Spring
 // Security Basic Auth, so we call it directly instead of relying on a proxy.
-// TODO: set VITE_API_URL to the real deployed backend URL once it's live.
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
 // A couple of backend controllers (PricingEngineController, PricingHistoryController)
@@ -10,26 +9,33 @@ const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 // So we derive a second client that strips the trailing /api for those two.
 const ROOT_URL = BASE_URL.replace(/\/api\/?$/, '');
 
+// SECURITY: credentials now come from environment variables (.env file),
+// never hardcoded here. Create a .env file in the frontend/ folder (it's
+// already gitignored) with:
+//   VITE_API_USERNAME=user
+//   VITE_API_PASSWORD=<current password from backend team>
+// This must be updated whenever backend team changes/fixes the password —
+// but at least it won't be committed to GitHub anymore.
+const AUTH_USERNAME = import.meta.env.VITE_API_USERNAME || 'user';
+const AUTH_PASSWORD = import.meta.env.VITE_API_PASSWORD || '';
+
+const authConfig = {
+  username: AUTH_USERNAME,
+  password: AUTH_PASSWORD,
+};
+
 const api = axios.create({
   baseURL: BASE_URL,
+  timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
-  // Spring Security Basic Auth Credentials
-  // NOTE: this password is Spring's auto-generated one and changes every
-  // backend restart — ask backend team to set a FIXED username/password
-  // in SecurityConfig.java so this stops breaking.
-  auth: {
-    username: 'user',
-    password: '75a3b21a-3695-47b8-bb68-cc6bb8154dc4'
-  }
+  auth: authConfig,
 });
 
 const rootApi = axios.create({
   baseURL: ROOT_URL,
+  timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
-  auth: {
-    username: 'user',
-    password: '75a3b21a-3695-47b8-bb68-cc6bb8154dc4'
-  }
+  auth: authConfig,
 });
 
 // ---- Product APIs ----
@@ -51,11 +57,8 @@ export const updateCompetitorPrice = (id, data) => api.put(`/competitor-prices/$
 export const deleteCompetitorPrice = (id) => api.delete(`/competitor-prices/${id}`);
 
 // ---- Pricing Engine APIs (used by Dev 2) ----
-// Real endpoint: POST /pricing-engine/calculate/{productId} — no /api prefix, no body.
 export const calculatePrice = (productId) => rootApi.post(`/pricing-engine/calculate/${productId}`);
-// Real endpoint: GET /pricing-history — no /api prefix.
 export const getPricingHistory = () => rootApi.get('/pricing-history');
-// Pricing History filtered by a specific product (used by Pricing Recommendation page)
 export const getPricingHistoryByProduct = (productId) => rootApi.get(`/pricing-history/product/${productId}`);
 
 // ---- Price comparison (single product vs its competitors, backend-computed) ----
