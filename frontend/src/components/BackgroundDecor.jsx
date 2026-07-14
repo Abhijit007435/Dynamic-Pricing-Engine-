@@ -1,18 +1,6 @@
 import { Box } from '@mui/material';
 import { tokens } from '../theme';
 
-/*
-  BackgroundDecor — a subtle, slow-drifting gradient + fine dot-grid
-  background. Ties into the "ledger / pricing chart" theme of the app
-  without being distracting (this is an admin tool, not a landing page).
-
-  Usage: place as the FIRST child inside a position:relative container,
-  with position:absolute, inset:0, zIndex:0 — content goes on top with
-  position:relative, zIndex:1.
-
-  variant="light"  → for light backgrounds (Dashboard, most pages)
-  variant="dark"   → for the dark indigo panel (Login/Signup left side)
-*/
 export default function BackgroundDecor({ variant = 'light' }) {
   const isDark = variant === 'dark';
 
@@ -26,7 +14,6 @@ export default function BackgroundDecor({ variant = 'light' }) {
         zIndex: 0,
       }}
     >
-      {/* Fine dot grid, like graph paper — reinforces the "data/pricing" feel */}
       <Box
         sx={{
           position: 'absolute',
@@ -36,7 +23,6 @@ export default function BackgroundDecor({ variant = 'light' }) {
         }}
       />
 
-      {/* Drifting gradient blob 1 */}
       <Box
         sx={{
           position: 'absolute',
@@ -56,7 +42,6 @@ export default function BackgroundDecor({ variant = 'light' }) {
         }}
       />
 
-      {/* Drifting gradient blob 2 */}
       <Box
         sx={{
           position: 'absolute',

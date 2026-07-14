@@ -1,17 +1,6 @@
 import { Box, Typography } from '@mui/material';
 import { tokens } from '../theme';
 
-/*
-  PriceTag — the signature visual element of this app.
-  Every price anywhere in the app should use this component so numbers
-  always look like they're read off a ledger: monospace, tabular figures,
-  consistent weight. Share this component with the Dev 2 pages too.
-
-  Usage:
-  <PriceTag value={799} />
-  <PriceTag value={879} variant="accent" size="large" />
-*/
-
 const colorMap = {
   default: tokens.ink,
   accent: tokens.accent,

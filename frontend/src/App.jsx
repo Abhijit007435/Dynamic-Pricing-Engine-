@@ -14,10 +14,8 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Login page — no sidebar/layout, no auth required */}
           <Route path="/login" element={<Login />} />
 
-          {/* Everything below requires login first */}
           <Route
             path="/"
             element={

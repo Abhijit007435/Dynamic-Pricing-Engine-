@@ -14,7 +14,6 @@ const features = [
   { icon: <ShowChartOutlinedIcon />, text: 'Competitor price comparison' },
 ];
 
-// Simple inline Google "G" logo — no extra icon library needed
 function GoogleIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18">
@@ -59,7 +58,6 @@ export default function Login() {
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex' }}>
-      {/* LEFT PANEL — branding / context */}
       <Box
         sx={{
           flex: 1,
@@ -111,7 +109,6 @@ export default function Login() {
         </Stack>
       </Box>
 
-      {/* RIGHT PANEL — the actual login form */}
       <Box
         sx={{
           flex: 1,
@@ -137,7 +134,6 @@ export default function Login() {
 
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-          {/* NEW: Google Sign-In button */}
           <Button
             fullWidth
             variant="outlined"

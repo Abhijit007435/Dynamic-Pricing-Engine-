@@ -16,13 +16,6 @@ import FadeIn from '../components/FadeIn';
 import { tokens } from '../theme';
 import { getProducts, addProduct, updateProduct, deleteProduct } from '../services/api';
 
-// Fallback mock data — shown ONLY if the real backend call fails.
-const MOCK_PRODUCTS = [
-  { id: 'mock-1', productName: 'Wireless Mouse', category: 'Electronics', currentPrice: 799 },
-  { id: 'mock-2', productName: 'Mechanical Keyboard', category: 'Electronics', currentPrice: 2499 },
-  { id: 'mock-3', productName: 'USB-C Hub', category: 'Accessories', currentPrice: 1199 },
-];
-
 const emptyForm = { productName: '', category: '', currentPrice: '' };
 
 function exportToCsv(rows) {
@@ -45,7 +38,7 @@ function exportToCsv(rows) {
 export default function ProductManagement() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [usingMockData, setUsingMockData] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -87,11 +80,11 @@ export default function ProductManagement() {
     getProducts()
       .then((res) => {
         setProducts(res.data);
-        setUsingMockData(false);
+        setLoadError(false);
       })
       .catch(() => {
-        setProducts(MOCK_PRODUCTS);
-        setUsingMockData(true);
+        setProducts([]);
+        setLoadError(true);
       })
       .finally(() => setLoading(false));
   };
@@ -175,18 +168,6 @@ export default function ProductManagement() {
 
     const payload = { ...form, currentPrice: Number(form.currentPrice) };
 
-    if (usingMockData) {
-      if (editingId) {
-        setProducts((prev) => prev.map((p) => (p.id === editingId ? { ...p, ...payload } : p)));
-        showToast('Product updated (sample data only)', 'success');
-      } else {
-        setProducts((prev) => [...prev, { id: `mock-${Date.now()}`, ...payload }]);
-        showToast('Product added (sample data only)', 'success');
-      }
-      setOpen(false);
-      return;
-    }
-
     if (editingId) {
       updateProduct(editingId, payload)
         .then(() => {
@@ -207,12 +188,6 @@ export default function ProductManagement() {
 
   const handleDelete = (product) => {
     setDeleteTarget(null);
-
-    if (usingMockData) {
-      setProducts((prev) => prev.filter((p) => p.id !== product.id));
-      showToast('Product deleted (sample data only)', 'success');
-      return;
-    }
 
     setPendingDeletes((prev) => {
       const timeoutId = setTimeout(() => {
@@ -321,12 +296,10 @@ export default function ProductManagement() {
           </Box>
         </Box>
 
-        {usingMockData && (
-          <Paper sx={{ p: 1.5, mb: 3, backgroundColor: tokens.decreaseSoft, borderColor: tokens.decrease }}>
-            <Typography variant="caption" sx={{ color: tokens.decrease }}>
-              Showing sample data — could not reach the backend server. Changes here won't be saved.
-            </Typography>
-          </Paper>
+        {loadError && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            Could not reach the backend server. Product data could not be loaded.
+          </Alert>
         )}
 
         <Stack direction="row" spacing={2} sx={{ mb: 3, flexWrap: 'wrap', gap: 2 }}>

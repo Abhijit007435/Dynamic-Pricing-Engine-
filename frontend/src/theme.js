@@ -1,26 +1,5 @@
 import { createTheme } from '@mui/material/styles';
 
-/*
-  DESIGN SYSTEM — Dynamic Pricing Engine (DARK THEME)
-  ----------------------------------------
-  Switched from light to dark. Since every page pulls colors from
-  `tokens` below (not hardcoded hex), most pages update automatically
-  just by this file changing — no need to touch Dashboard.jsx,
-  ProductManagement.jsx, or teammate's pages individually.
-
-  Colors:
-    background      #0D0F14   near-black ink
-    surface (cards)  #161922   dark card surface
-    ink (text)       #F4F5F7   near-white
-    structure        #5B7099   medium slate-blue (readable as text/icons
-                                on dark bg, still reads as "brand navy")
-    accent (gold)    #D9A441   slightly brighter gold for dark bg
-    increase         #5FBE85   brighter green for dark bg
-    decrease         #E07B63   brighter rust for dark bg
-
-  Fonts unchanged: Sora (headings), Inter (body), JetBrains Mono (prices)
-*/
-
 export const tokens = {
   background: '#0D0F14',
   surface: '#161922',

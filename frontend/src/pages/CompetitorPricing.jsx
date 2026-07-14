@@ -60,22 +60,16 @@ export default function CompetitorPricing() {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [pendingDeletes, setPendingDeletes] = useState({});
 
-  // NEW: bulk-select state
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const tableRef = useRef(null);
 
-  // NEW: product-level "Compare Prices" feature (per functional requirements —
-  // this is product-level, not row-level, since the backend returns an average
-  // across all competitors for a product, not a single-competitor comparison)
   const [compareProduct, setCompareProduct] = useState(null);
   const [compareResult, setCompareResult] = useState(null);
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareError, setCompareError] = useState(null);
 
-  // NEW: clicking anywhere outside the table (and its action bar) clears the
-  // current selection, instead of having to uncheck each row one by one.
   useEffect(() => {
     if (selectedIds.length === 0) return;
     const handleClickOutside = (event) => {
@@ -229,7 +223,6 @@ export default function CompetitorPricing() {
     showSnackbar('Delete undone.', 'success');
   };
 
-  // NEW: bulk-delete handler — no per-item undo, confirmation dialog guards against mistakes instead
   const handleBulkDelete = async () => {
     setBulkDeleting(true);
     let successCount = 0;
@@ -257,9 +250,6 @@ export default function CompetitorPricing() {
     fetchItems();
   };
 
-  // NEW: product-level compare — calls backend's compare endpoint which
-  // returns an average across all competitor entries for that product.
-  // Backend throws a 400 if the product has no competitor prices recorded yet.
   const handleCompare = async () => {
     if (!compareProduct) return;
     setCompareLoading(true);
@@ -386,7 +376,6 @@ export default function CompetitorPricing() {
     URL.revokeObjectURL(url);
   };
 
-  // NEW: bulk-select helpers
   const allOnPageSelected =
     paginatedItems.length > 0 && paginatedItems.every((item) => selectedIds.includes(item.id));
   const someOnPageSelected = paginatedItems.some((item) => selectedIds.includes(item.id));
@@ -480,11 +469,6 @@ export default function CompetitorPricing() {
         )}
 
         {compareResult && !compareLoading && (() => {
-          // Exact fields confirmed from backend's PriceComparisonDTO.java:
-          // productName, ourPrice, competitorPrice, difference, status
-          // NOTE: "competitorPrice" here holds the AVERAGE value — the DTO is
-          // shared with PricingEngineService's single-latest-price endpoint,
-          // which is why the field isn't named "avgCompetitorPrice".
           const { ourPrice, competitorPrice: avgCompetitorPrice, difference, status } = compareResult;
 
           const statusMap = {
@@ -807,7 +791,6 @@ export default function CompetitorPricing() {
         </DialogActions>
       </Dialog>
 
-      {/* NEW: bulk-delete confirmation dialog */}
       <Dialog open={bulkDeleteConfirmOpen} onClose={() => !bulkDeleting && setBulkDeleteConfirmOpen(false)}>
         <DialogTitle sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>
           Confirm Bulk Delete

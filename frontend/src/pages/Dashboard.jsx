@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Box, Typography, Paper, Chip, Stack, CircularProgress } from '@mui/material';
+import { Box, Typography, Paper, Chip, Stack, CircularProgress, Alert } from '@mui/material';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
@@ -11,20 +11,12 @@ import TiltCard from '../components/TiltCard';
 import { tokens } from '../theme';
 import { getDashboardAnalytics, getDashboardRecommendations } from '../services/api';
 
-// Fallback mock data — shown ONLY if the real backend call fails.
-const MOCK_STATS = {
-  totalProducts: 42,
-  lowStockCount: 5,
-  recommendationsToday: 12,
-  averagePrice: 1249,
+const EMPTY_STATS = {
+  totalProducts: 0,
+  lowStockCount: 0,
+  recommendationsToday: 0,
+  averagePrice: 0,
 };
-
-const MOCK_RECENT_CHANGES = [
-  { product: 'Wireless Mouse', oldPrice: 799, newPrice: 879, direction: 'up', stockStatus: 'LOW' },
-  { product: 'Mechanical Keyboard', oldPrice: 2499, newPrice: 2299, direction: 'down', stockStatus: 'HIGH' },
-  { product: 'USB-C Hub', oldPrice: 1199, newPrice: 1250, direction: 'up', stockStatus: 'NORMAL' },
-  { product: 'Webcam 1080p', oldPrice: 1899, newPrice: 1799, direction: 'down', stockStatus: 'NORMAL' },
-];
 
 const stockStatusStyle = (status) => {
   const normalized = (status || '').toUpperCase();
@@ -34,10 +26,10 @@ const stockStatusStyle = (status) => {
 };
 
 export default function Dashboard() {
-  const [stats, setStats] = useState(MOCK_STATS);
-  const [recentChanges, setRecentChanges] = useState(MOCK_RECENT_CHANGES);
+  const [stats, setStats] = useState(EMPTY_STATS);
+  const [recentChanges, setRecentChanges] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [usingMockData, setUsingMockData] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -52,11 +44,12 @@ export default function Dashboard() {
           recommendationsToday: data.totalRecommendations ?? data.recommendationsToday ?? 0,
           averagePrice: data.averageProductPrice ?? data.averagePrice ?? 0,
         });
+        setLoadError(false);
       })
       .catch(() => {
         if (isMounted) {
-          setUsingMockData(true);
-          setStats(MOCK_STATS);
+          setLoadError(true);
+          setStats(EMPTY_STATS);
         }
       });
 
@@ -71,10 +64,10 @@ export default function Dashboard() {
           direction: (item.recommendedPrice ?? 0) >= (item.oldPrice ?? 0) ? 'up' : 'down',
           stockStatus: item.stockStatus ?? 'NORMAL',
         }));
-        if (mapped.length > 0) setRecentChanges(mapped);
+        setRecentChanges(mapped);
       })
       .catch(() => {
-        if (isMounted) setRecentChanges(MOCK_RECENT_CHANGES);
+        if (isMounted) setRecentChanges([]);
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -92,12 +85,10 @@ export default function Dashboard() {
         Overview of products, stock, and pricing activity
       </Typography>
 
-      {usingMockData && (
-        <Paper sx={{ p: 1.5, mb: 3, backgroundColor: tokens.decreaseSoft, borderColor: tokens.decrease }}>
-          <Typography variant="caption" sx={{ color: tokens.decrease }}>
-            Showing sample data — could not reach the backend server.
-          </Typography>
-        </Paper>
+      {loadError && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          Could not reach the backend server. Dashboard data may be incomplete.
+        </Alert>
       )}
 
       {loading ? (
@@ -131,66 +122,72 @@ export default function Dashboard() {
                 <Typography variant="h6">Recent Price Recommendations</Typography>
               </Stack>
 
-              <Stack spacing={0}>
-                {recentChanges.map((change, idx) => {
-                  const stockStyle = stockStatusStyle(change.stockStatus);
-                  return (
-                    <Box
-                      key={idx}
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        py: 1.5,
-                        flexWrap: 'wrap',
-                        gap: 1,
-                        borderBottom: idx < recentChanges.length - 1 ? `1px solid ${tokens.structureSoft}` : 'none',
-                        transition: 'background-color 150ms ease',
-                        '&:hover': { backgroundColor: tokens.background },
-                      }}
-                    >
-                      <Box>
-                        <Typography variant="body1" sx={{ fontWeight: 500 }}>{change.product}</Typography>
-                        <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mt: 0.3 }}>
-                          <Typography variant="caption" sx={{ color: tokens.inkSoft }}>Stock:</Typography>
+              {recentChanges.length === 0 ? (
+                <Typography variant="body2" sx={{ color: tokens.inkSoft }}>
+                  No recent recommendations available.
+                </Typography>
+              ) : (
+                <Stack spacing={0}>
+                  {recentChanges.map((change, idx) => {
+                    const stockStyle = stockStatusStyle(change.stockStatus);
+                    return (
+                      <Box
+                        key={idx}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          py: 1.5,
+                          flexWrap: 'wrap',
+                          gap: 1,
+                          borderBottom: idx < recentChanges.length - 1 ? `1px solid ${tokens.structureSoft}` : 'none',
+                          transition: 'background-color 150ms ease',
+                          '&:hover': { backgroundColor: tokens.background },
+                        }}
+                      >
+                        <Box>
+                          <Typography variant="body1" sx={{ fontWeight: 500 }}>{change.product}</Typography>
+                          <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mt: 0.3 }}>
+                            <Typography variant="caption" sx={{ color: tokens.inkSoft }}>Stock:</Typography>
+                            <Chip
+                              size="small"
+                              label={change.stockStatus}
+                              sx={{
+                                backgroundColor: stockStyle.bg,
+                                color: stockStyle.color,
+                                fontWeight: 600,
+                                fontSize: '0.65rem',
+                                height: 20,
+                              }}
+                            />
+                          </Stack>
+                        </Box>
+                        <Stack direction="row" alignItems="center" spacing={1.5}>
+                          <Box sx={{ textAlign: 'right' }}>
+                            <Typography variant="caption" sx={{ color: tokens.inkSoft, display: 'block' }}>Old Price</Typography>
+                            <PriceTag value={change.oldPrice} size="small" />
+                          </Box>
+                          <Typography sx={{ color: tokens.inkSoft }}>→</Typography>
+                          <Box sx={{ textAlign: 'right' }}>
+                            <Typography variant="caption" sx={{ color: tokens.inkSoft, display: 'block' }}>Recommended</Typography>
+                            <PriceTag value={change.newPrice} size="small" variant={change.direction === 'up' ? 'increase' : 'decrease'} />
+                          </Box>
                           <Chip
                             size="small"
-                            label={change.stockStatus}
+                            label={change.direction === 'up' ? 'Increased' : 'Decreased'}
                             sx={{
-                              backgroundColor: stockStyle.bg,
-                              color: stockStyle.color,
+                              backgroundColor: change.direction === 'up' ? tokens.increaseSoft : tokens.decreaseSoft,
+                              color: change.direction === 'up' ? tokens.increase : tokens.decrease,
                               fontWeight: 600,
-                              fontSize: '0.65rem',
-                              height: 20,
+                              fontSize: '0.7rem',
                             }}
                           />
                         </Stack>
                       </Box>
-                      <Stack direction="row" alignItems="center" spacing={1.5}>
-                        <Box sx={{ textAlign: 'right' }}>
-                          <Typography variant="caption" sx={{ color: tokens.inkSoft, display: 'block' }}>Old Price</Typography>
-                          <PriceTag value={change.oldPrice} size="small" />
-                        </Box>
-                        <Typography sx={{ color: tokens.inkSoft }}>→</Typography>
-                        <Box sx={{ textAlign: 'right' }}>
-                          <Typography variant="caption" sx={{ color: tokens.inkSoft, display: 'block' }}>Recommended</Typography>
-                          <PriceTag value={change.newPrice} size="small" variant={change.direction === 'up' ? 'increase' : 'decrease'} />
-                        </Box>
-                        <Chip
-                          size="small"
-                          label={change.direction === 'up' ? 'Increased' : 'Decreased'}
-                          sx={{
-                            backgroundColor: change.direction === 'up' ? tokens.increaseSoft : tokens.decreaseSoft,
-                            color: change.direction === 'up' ? tokens.increase : tokens.decrease,
-                            fontWeight: 600,
-                            fontSize: '0.7rem',
-                          }}
-                        />
-                      </Stack>
-                    </Box>
-                  );
-                })}
-              </Stack>
+                    );
+                  })}
+                </Stack>
+              )}
             </Paper>
           </FadeIn>
         </>

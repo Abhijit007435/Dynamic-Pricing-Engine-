@@ -47,9 +47,6 @@ import {
   updateProduct,
 } from '../services/api';
 
-// Freshness helper — since backend calculates recommendations in real-time
-// and doesn't return a timestamp, we track "when did the frontend fetch this"
-// client-side, so admins can tell if a displayed number might be stale.
 const getFreshnessLabel = (calculatedAt) => {
   if (!calculatedAt) return null;
   const seconds = Math.floor((new Date() - new Date(calculatedAt)) / 1000);
@@ -74,12 +71,11 @@ export default function PricingRecommendation() {
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  const [tab, setTab] = useState(0); // 0 = Single Product, 1 = All Products
+  const [tab, setTab] = useState(0);
 
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const showSnackbar = (message, severity = 'success') => setSnackbar({ open: true, message, severity });
 
-  // ---- All Products tab state ----
   const [allResults, setAllResults] = useState([]);
   const [loadingAll, setLoadingAll] = useState(false);
   const [allSearch, setAllSearch] = useState('');
@@ -87,7 +83,7 @@ export default function PricingRecommendation() {
   const [order, setOrder] = useState('asc');
   const [applyingId, setApplyingId] = useState(null);
 
-  const [statusFilter, setStatusFilter] = useState('all'); // all | up | down | same
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -97,8 +93,6 @@ export default function PricingRecommendation() {
   const [bulkApplying, setBulkApplying] = useState(false);
   const allProductsRef = useRef(null);
 
-  // NEW: clicking anywhere outside the All Products table (and its action bar)
-  // clears the current selection, instead of unchecking each row one by one.
   useEffect(() => {
     if (selectedIds.length === 0) return;
     const handleClickOutside = (event) => {
@@ -110,13 +104,11 @@ export default function PricingRecommendation() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [selectedIds.length]);
 
-  // NEW: per-row "view history" modal state (All Products tab)
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [historyDialogProductName, setHistoryDialogProductName] = useState('');
   const [historyDialogData, setHistoryDialogData] = useState([]);
   const [historyDialogLoading, setHistoryDialogLoading] = useState(false);
 
-  // NEW: force a re-render every 30s so "X ago" labels stay live without extra API calls
   const [, forceTick] = useState(0);
   useEffect(() => {
     const interval = setInterval(() => forceTick((t) => t + 1), 30000);
@@ -190,7 +182,7 @@ export default function PricingRecommendation() {
   const priceUnchanged = result && result.recommendedPrice === result.currentPrice;
   const resultFreshness = result ? getFreshnessLabel(result.calculatedAt) : null;
 
-  // ---- All Products tab logic ----
+  
   const loadAllRecommendations = async () => {
     setLoadingAll(true);
     setAllResults([]);
@@ -228,7 +220,7 @@ export default function PricingRecommendation() {
     if (tab === 1 && allResults.length === 0 && products.length > 0) {
       loadAllRecommendations();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, [tab, products]);
 
   const handleApplyRow = async (row) => {
@@ -246,7 +238,7 @@ export default function PricingRecommendation() {
     }
   };
 
-  // NEW: open history modal for a specific row (All Products tab)
+  
   const handleOpenHistoryDialog = async (row) => {
     setHistoryDialogProductName(row.productName);
     setHistoryDialogOpen(true);
@@ -793,7 +785,7 @@ export default function PricingRecommendation() {
         </Box>
       )}
 
-      {/* NEW: per-row pricing history modal (All Products tab) */}
+      
       <Dialog open={historyDialogOpen} onClose={handleCloseHistoryDialog} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
           <HistoryIcon sx={{ color: tokens.inkSoft }} />

@@ -11,7 +11,6 @@ import { useAuth } from '../context/AuthContext';
 
 const DRAWER_WIDTH = 240;
 
-// NOTE for both frontend devs: add your route here so the nav stays in sync.
 const navItems = [
   { label: 'Dashboard', path: '/', icon: <DashboardOutlinedIcon /> },
   { label: 'Products', path: '/products', icon: <StorefrontOutlinedIcon /> },
@@ -94,10 +93,6 @@ export default function Layout({ children }) {
           </Toolbar>
         </AppBar>
 
-        {/* Page transition: the key={location.pathname} forces React to
-            remount this Box on every route change, which re-triggers the
-            CSS animation below — giving a fade+slide-in effect every time
-            you navigate to a different page. No extra library needed. */}
         <Box
           key={location.pathname}
           component="main"

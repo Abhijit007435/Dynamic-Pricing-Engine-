@@ -43,10 +43,6 @@ import { tokens } from '../theme';
 import StatCard from '../components/StatCard';
 import { getInventory, addInventory, updateInventory, deleteInventory, getProducts } from '../services/api';
 
-// Aligned with backend's InventoryService.getInventoryStatus() thresholds
-// exactly: <=0 OUT_OF_STOCK, <20 LOW, <=100 MEDIUM (shown as "Normal"), >100 HIGH.
-// Previously this used different local numbers (<=10 / >=100) which didn't
-// match the backend's business logic — now synced.
 const LOW_STOCK_THRESHOLD = 20;
 const HIGH_STOCK_THRESHOLD = 100;
 
@@ -110,43 +106,33 @@ export default function InventoryManagement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Search / status filter
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  // Sorting
   const [orderBy, setOrderBy] = useState('productName');
   const [order, setOrder] = useState('asc');
 
-  // Pagination
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  // Add/Edit dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [form, setForm] = useState({ productId: '', availableQuantity: '' });
   const [formError, setFormError] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  // Duplicate-stock resolution dialog
   const [duplicateDialog, setDuplicateDialog] = useState(null);
   const [resolving, setResolving] = useState(false);
 
-  // Snackbar feedback
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
-  // Undo-delete state
   const [pendingDeletes, setPendingDeletes] = useState({});
 
-  // NEW: bulk-select state
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const tableRef = useRef(null);
 
-  // NEW: clicking anywhere outside the table clears the current selection,
-  // instead of having to uncheck each row one by one.
   useEffect(() => {
     if (selectedIds.length === 0) return;
     const handleClickOutside = (event) => {
@@ -259,10 +245,6 @@ export default function InventoryManagement() {
     }
 
     if (editingItem) {
-      // Backend's PUT /inventory/{id} is ADDITIVE (existing + incoming), not a
-      // set-exact-value endpoint. Since this dialog shows the current quantity
-      // and lets the admin type the new desired total, we must send only the
-      // delta so the backend's addition lands on the intended final value.
       const delta = qty - editingItem.availableQuantity;
       persistInventory(
         {
@@ -291,9 +273,6 @@ export default function InventoryManagement() {
     if (!duplicateDialog) return;
     setResolving(true);
     const { existing, enteredQuantity } = duplicateDialog;
-    // Backend's PUT /inventory/{id} already does existing + incoming itself.
-    // Sending a pre-summed value here would double-count, so we send the
-    // raw entered quantity only and let the backend do the addition.
     persistInventory(
       {
         id: existing.id,
@@ -308,8 +287,6 @@ export default function InventoryManagement() {
     if (!duplicateDialog) return;
     setResolving(true);
     const { existing, enteredQuantity } = duplicateDialog;
-    // Backend is additive, so to "overwrite" to an exact value we must send
-    // the delta between the desired final value and the current value.
     const delta = enteredQuantity - existing.availableQuantity;
     persistInventory(
       {
@@ -356,7 +333,6 @@ export default function InventoryManagement() {
     setSnackbar({ open: true, message: 'Delete undone.', severity: 'success' });
   };
 
-  // NEW: bulk-delete handler (no per-item undo — confirmation dialog protects against mistakes instead)
   const handleBulkDelete = async () => {
     setBulkDeleting(true);
     let successCount = 0;
@@ -419,7 +395,6 @@ export default function InventoryManagement() {
 
   const selectedProduct = products.find((p) => p.id === form.productId) || null;
 
-  // NEW: bulk-select helpers
   const allOnPageSelected =
     paginatedItems.length > 0 && paginatedItems.every((item) => selectedIds.includes(item.id));
   const someOnPageSelected = paginatedItems.some((item) => selectedIds.includes(item.id));
@@ -699,7 +674,6 @@ export default function InventoryManagement() {
       </TableContainer>
       </Box>
 
-      {/* Add / Edit dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>
           {editingItem ? 'Update Stock Level' : 'Add New Inventory'}
@@ -739,7 +713,6 @@ export default function InventoryManagement() {
         </DialogActions>
       </Dialog>
 
-      {/* Duplicate-stock resolution dialog */}
       <Dialog open={!!duplicateDialog} onClose={() => !resolving && setDuplicateDialog(null)} fullWidth maxWidth="xs">
         <DialogTitle sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>
           Product Already in Stock
@@ -786,7 +759,6 @@ export default function InventoryManagement() {
         </DialogActions>
       </Dialog>
 
-      {/* NEW: bulk-delete confirmation dialog */}
       <Dialog open={bulkDeleteConfirmOpen} onClose={() => !bulkDeleting && setBulkDeleteConfirmOpen(false)}>
         <DialogTitle sx={{ fontFamily: '"Sora", sans-serif', fontWeight: 600 }}>
           Confirm Bulk Delete
@@ -810,7 +782,6 @@ export default function InventoryManagement() {
         </DialogActions>
       </Dialog>
 
-      {/* Success/error/info toast */}
       <Snackbar
         open={snackbar.open}
         autoHideDuration={snackbar.undoId ? 5000 : 3500}
