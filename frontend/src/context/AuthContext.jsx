@@ -1,27 +1,24 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, signInWithGoogle, firebaseSignOut } from '../firebase';
-
-/*
-  AuthContext — now supports TWO login methods:
-  1. Existing username/password (admin/admin123) — unchanged, still works
-  2. NEW: Google Sign-In via Firebase
-
-  Both set the same `isLoggedIn` state, so the rest of the app (ProtectedRoute,
-  Layout, etc.) doesn't need to know or care which method was used.
-*/
+import { auth, signInWithGoogle, firebaseSignOut, isFirebaseConfigured } from '../firebase';
 
 const AuthContext = createContext(null);
 
-const DEFAULT_ADMIN = { username: 'admin', password: 'admin123' };
+const ADMIN_USERNAME = import.meta.env.VITE_ADMIN_USERNAME || '';
+const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || '';
 
 export function AuthProvider({ children }) {
   const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem('isLoggedIn') === 'true');
   const [googleUser, setGoogleUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  // Listen for Firebase auth state changes (handles page refresh, etc.)
   useEffect(() => {
+    if (!auth) {
+      // Firebase not configured locally — skip auth listener.
+      setAuthLoading(false);
+      return undefined;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setGoogleUser(user);
@@ -33,9 +30,8 @@ export function AuthProvider({ children }) {
     return () => unsubscribe();
   }, []);
 
-  // Existing username/password login — unchanged behavior
   const login = (username, password) => {
-    if (username === DEFAULT_ADMIN.username && password === DEFAULT_ADMIN.password) {
+    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
       localStorage.setItem('isLoggedIn', 'true');
       setIsLoggedIn(true);
       return { success: true };
@@ -43,8 +39,16 @@ export function AuthProvider({ children }) {
     return { success: false, message: 'Invalid username or password' };
   };
 
-  // NEW: Google Sign-In
   const loginWithGoogle = async () => {
+    // Dev fallback: simulate Google auth when Firebase not configured.
+    if (!isFirebaseConfigured && import.meta.env.DEV) {
+      const fakeUser = { displayName: 'Dev User', email: 'dev@local' };
+      setGoogleUser(fakeUser);
+      setIsLoggedIn(true);
+      localStorage.setItem('isLoggedIn', 'true');
+      return { success: true };
+    }
+
     try {
       const result = await signInWithGoogle();
       setGoogleUser(result.user);
@@ -52,8 +56,7 @@ export function AuthProvider({ children }) {
       localStorage.setItem('isLoggedIn', 'true');
       return { success: true };
     } catch (err) {
-      // User closing the Google popup counts as "cancelled", not a real error
-      if (err.code === 'auth/popup-closed-by-user') {
+      if (err?.code === 'auth/popup-closed-by-user') {
         return { success: false, message: '' };
       }
       return { success: false, message: 'Google sign-in failed. Please try again.' };
@@ -69,8 +72,7 @@ export function AuthProvider({ children }) {
     setGoogleUser(null);
   };
 
-  // Display name works for either login method
-  const displayName = googleUser?.displayName || googleUser?.email || 'admin';
+  const displayName = googleUser?.displayName || googleUser?.email || ADMIN_USERNAME || 'User';
 
   return (
     <AuthContext.Provider value={{ isLoggedIn, authLoading, displayName, googleUser, login, loginWithGoogle, logout }}>

@@ -7,6 +7,7 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import ShowChartOutlinedIcon from '@mui/icons-material/ShowChartOutlined';
 import { useAuth } from '../context/AuthContext';
 import { tokens } from '../theme';
+import { isFirebaseConfigured, isFakeAuthEnabled } from '../firebase';
 
 const features = [
   { icon: <TrendingUpOutlinedIcon />, text: 'Rule-based pricing recommendations' },
@@ -14,7 +15,6 @@ const features = [
   { icon: <ShowChartOutlinedIcon />, text: 'Competitor price comparison' },
 ];
 
-// Simple inline Google "G" logo — no extra icon library needed
 function GoogleIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18">
@@ -46,6 +46,10 @@ export default function Login() {
   };
 
   const handleGoogleSignIn = async () => {
+    if (!isFirebaseConfigured && !isFakeAuthEnabled) {
+      setError('Firebase not configured locally. Add VITE_FIREBASE_* values to your .env and enable Google in Firebase Console, or enable VITE_FAKE_AUTH for local dev.');
+      return;
+    }
     setError('');
     setGoogleLoading(true);
     const result = await loginWithGoogle();
@@ -59,7 +63,6 @@ export default function Login() {
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex' }}>
-      {/* LEFT PANEL — branding / context */}
       <Box
         sx={{
           flex: 1,
@@ -111,7 +114,6 @@ export default function Login() {
         </Stack>
       </Box>
 
-      {/* RIGHT PANEL — the actual login form */}
       <Box
         sx={{
           flex: 1,
@@ -137,7 +139,12 @@ export default function Login() {
 
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-          {/* NEW: Google Sign-In button */}
+          { !isFirebaseConfigured && !isFakeAuthEnabled && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              Google sign-in is disabled — add <strong>VITE_FIREBASE_*</strong> to your local <strong>.env</strong> and enable Google sign-in in Firebase Console.
+            </Alert>
+          ) }
+
           <Button
             fullWidth
             variant="outlined"
