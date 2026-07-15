@@ -10,7 +10,7 @@ const authConfig = AUTH_USERNAME || AUTH_PASSWORD
 
 const api = axios.create({
   baseURL: `${API_BASE_URL}/api`,
-  timeout: 10000,
+  timeout: 60000,
   headers: { "Content-Type": "application/json" },
   ...(authConfig ? { auth: authConfig } : {}),
 });
