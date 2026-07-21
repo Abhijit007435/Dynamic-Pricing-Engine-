@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://dynamic-pricing-engine-dqws.onrender.com";
 
 const AUTH_USERNAME = import.meta.env.VITE_API_USERNAME || "";
 const AUTH_PASSWORD = import.meta.env.VITE_API_PASSWORD || "";
