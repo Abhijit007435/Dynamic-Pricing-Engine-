@@ -151,7 +151,7 @@ export default function PricingRecommendation() {
     try {
       const response = await calculatePrice(selectedProduct.id);
       setResult({ ...response.data, calculatedAt: new Date() });
-      fetchHistory(selectedProduct.id);
+      await fetchHistory(selectedProduct.id);
     } catch (err) {
       setError('Could not calculate a recommendation. Please try again.');
     } finally {
@@ -183,16 +183,16 @@ export default function PricingRecommendation() {
   const resultFreshness = result ? getFreshnessLabel(result.calculatedAt) : null;
 
   
-  const loadAllRecommendations = async () => {
+  const loadAllRecommendations = async (productList = products) => {
     setLoadingAll(true);
     setAllResults([]);
     setSelectedIds([]);
     try {
       const settled = await Promise.allSettled(
-        products.map((p) => calculatePrice(p.id))
+        productList.map((p) => calculatePrice(p.id))
       );
       const now = new Date();
-      const combined = products.map((p, i) => {
+      const combined = productList.map((p, i) => {
         const outcome = settled[i];
         if (outcome.status === 'fulfilled') {
           return { ...outcome.value.data, productName: p.productName, product: p, failed: false, calculatedAt: now };
@@ -229,8 +229,9 @@ export default function PricingRecommendation() {
       const payload = { ...row.product, currentPrice: row.recommendedPrice };
       await updateProduct(row.productId, payload);
       showSnackbar(`Price updated for ${row.productName}.`, 'success');
-      await fetchProducts();
-      loadAllRecommendations();
+      const productsResponse = await getProducts();
+      setProducts(productsResponse.data);
+      await loadAllRecommendations(productsResponse.data);
     } catch (err) {
       showSnackbar(`Failed to apply price for ${row.productName}.`, 'error');
     } finally {
