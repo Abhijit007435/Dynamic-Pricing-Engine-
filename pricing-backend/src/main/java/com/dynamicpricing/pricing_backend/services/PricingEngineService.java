@@ -189,25 +189,35 @@ public class PricingEngineService {
 
     String aiExplanation;
 
-    if ("No change".equals(reason.toString())) {
+if ("No change".equals(reason.toString())) {
+
+    aiExplanation =
+        "This product is already priced appropriately based on current market conditions.";
+
+} else {
+
+    try {
 
         aiExplanation =
-                "This product is already priced appropriately based on current market conditions.";
-    }
-    else {
+            aiExplanationService.generateExplanation(
+                product.getProductName(),
+                product.getCurrentPrice(),
+                recommendedPrice,
+                product.getDemandLevel() != null
+                        ? product.getDemandLevel().name()
+                        : "MEDIUM",
+                inventory.getAvailableQuantity(),
+                avgCompetitorPrice
+            );
+
+    } catch (Exception e) {
+
+        e.printStackTrace();
 
         aiExplanation =
-                aiExplanationService.generateExplanation(
-                        product.getProductName(),
-                        product.getCurrentPrice(),
-                        recommendedPrice,
-                       product.getDemandLevel() != null
-        ? product.getDemandLevel().name()
-        : "MEDIUM",
-                        inventory.getAvailableQuantity(),
-                        avgCompetitorPrice
-                );
+            "AI explanation is temporarily unavailable.";
     }
+}
 
     return new PricingRecommendationDTO(
             productId,
